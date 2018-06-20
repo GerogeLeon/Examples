@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:int-sftp="http://www.springframework.org/schema/integration/sftp"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration.xsd
+		http://www.springframework.org/schema/integration/sftp http://www.springframework.org/schema/integration/sftp/spring-integration-sftp.xsd">
+
+	<import resource="SftpSampleCommon.xml"/>
+
+	<int-sftp:inbound-channel-adapter id="sftpInbondAdapter"
+			auto-startup="false"
+			channel="receiveChannel"
+			session-factory="sftpSessionFactory"
+			local-directory="file:local-dir"
+			remote-directory="si.sftp.sample"
+			auto-create-local-directory="true"
+			delete-remote-files="false"
+			filename-regex=".*\.txt$">
+		<int:poller fixed-rate="1000" max-messages-per-poll="1"/>
+	</int-sftp:inbound-channel-adapter>
+
+	<int:channel id="receiveChannel">
+		<int:queue/>
+	</int:channel>
+
+</beans>

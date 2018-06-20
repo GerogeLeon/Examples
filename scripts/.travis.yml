@@ -1,0 +1,9 @@
+language: java
+git:
+  submodules: false
+before_install:
+- cp .gitmodules .gitmodules~
+- sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
+- git submodule update --init --recursive
+- mv .gitmodules~ .gitmodules
+script: ./mvnw clean install

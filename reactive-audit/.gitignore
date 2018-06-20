@@ -1,0 +1,14 @@
+.idea/
+.gradle/
+.DS_Store
+.classpath
+.project
+.settings/
+build/
+target/
+home/
+MYTODO.txt
+*~
+*.iml
+*.ipr
+*.iws

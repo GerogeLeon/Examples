@@ -1,0 +1,39 @@
+server:
+  port: 8030
+eureka:
+  client:
+    service-url:
+      default-zone: http://localhost:8761/eureka
+  instance:
+    #instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
+    instanceId: ${spring.application.name}:${spring.cloud.client.ipAddress}:${server.port}
+spring:
+  #zipkin:
+    #base-url: http://127.0.0.1:9411
+  sleuth:
+    sampler:
+      percentage: 1.0
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+feign:
+  hystrix:
+    enabled: true
+
+
+---
+spring:
+  profiles: docker
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: guest
+    password: guest
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_SERVER_LIST}
+server:
+  port: ${{SERVER_PORT}:8030}

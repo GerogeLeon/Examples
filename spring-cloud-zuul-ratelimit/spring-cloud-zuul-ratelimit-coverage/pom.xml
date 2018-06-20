@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>spring-cloud-zuul-ratelimit-parent</artifactId>
+        <groupId>com.marcosbarbero.cloud</groupId>
+        <version>1.7.2.RELEASE</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>spring-cloud-zuul-ratelimit-coverage</artifactId>
+
+    <properties>
+        <main.basedir>${basedir}/..</main.basedir>
+        <build.directory.core>../spring-cloud-zuul-ratelimit-core/target</build.directory.core>
+        <build.directory.it.inmemory>../spring-cloud-zuul-ratelimit-tests/inmemory/target</build.directory.it.inmemory>
+        <build.directory.it.redis>../spring-cloud-zuul-ratelimit-tests/redis/target</build.directory.it.redis>
+        <build.directory.it.consul>../spring-cloud-zuul-ratelimit-tests/consul/target</build.directory.it.consul>
+        <build.directory.it.springdata>../spring-cloud-zuul-ratelimit-tests/springdata/target</build.directory.it.springdata>
+
+        <classes.directory.core>${build.directory.core}/classes</classes.directory.core>
+        <classes.directory.it.inmemory>${build.directory.it.inmemory}/classes</classes.directory.it.inmemory>
+        <classes.directory.it.redis>${build.directory.it.redis}/classes</classes.directory.it.redis>
+        <classes.directory.it.consul>${build.directory.it.consul}/classes</classes.directory.it.consul>
+        <classes.directory.it.springdata>${build.directory.it.springdata}/classes</classes.directory.it.springdata>
+
+        <sources.directory.core>../spring-cloud-zuul-ratelimit-core/src/main/java</sources.directory.core>
+        <sources.directory.it.inmemory>../spring-cloud-zuul-ratelimit-tests/inmemory/src/main/java</sources.directory.it.inmemory>
+        <sources.directory.it.redis>../spring-cloud-zuul-ratelimit-tests/redis/src/main/java</sources.directory.it.redis>
+        <sources.directory.it.consul>../spring-cloud-zuul-ratelimit-tests/consul/src/main/java</sources.directory.it.consul>
+        <sources.directory.it.springdata>../spring-cloud-zuul-ratelimit-tests/springdata/src/main/java</sources.directory.it.springdata>
+
+        <generated-sources.directory.core>
+            ${build.directory.core}/generated-sources/annotations
+        </generated-sources.directory.core>
+        <generated-sources.directory.it.inmemory>
+            ${build.directory.it.inmemory}/target/generated-sources/annotations
+        </generated-sources.directory.it.inmemory>
+        <generated-sources.directory.it.redis>
+            ${build.directory.it.redis}/target/generated-sources/annotations
+        </generated-sources.directory.it.redis>
+        <generated-sources.directory.it.consul>
+            ${build.directory.it.consul}/target/generated-sources/annotations
+        </generated-sources.directory.it.consul>
+        <generated-sources.directory.it.springdata>
+            ${build.directory.it.springdata}/target/generated-sources/annotations
+        </generated-sources.directory.it.springdata>
+    </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <!-- Copy the ant tasks jar. Needed for ts.jacoco.report-ant . -->
+                    <execution>
+                        <id>jacoco-dependency-ant</id>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <phase>process-test-resources</phase>
+                        <inherited>false</inherited>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>org.jacoco</groupId>
+                                    <artifactId>org.jacoco.ant</artifactId>
+                                    <version>${jacoco.version}</version>
+
+                                </artifactItem>
+                            </artifactItems>
+                            <stripVersion>true</stripVersion>
+                            <outputDirectory>${basedir}/target/jacoco-jars</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>1.6</version>
+                <executions>
+                    <execution>
+                        <phase>post-integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <!-- Execute an ant task within maven -->
+                                <echo message="Generating JaCoCo Reports"/>
+                                <taskdef name="report" classname="org.jacoco.ant.ReportTask">
+                                    <classpath path="${basedir}/target/jacoco-jars/org.jacoco.ant.jar"/>
+                                </taskdef>
+                                <mkdir dir="${basedir}/target/coverage-report"/>
+                                <report>
+                                    <structure name="jacoco-multi Coverage Project">
+                                        <group name="jacoco-multi">
+                                            <classfiles>
+                                                <fileset dir="${classes.directory.core}"/>
+                                                <fileset dir="${classes.directory.it.inmemory}"/>
+                                                <fileset dir="${classes.directory.it.redis}"/>
+                                                <fileset dir="${classes.directory.it.consul}"/>
+                                                <fileset dir="${classes.directory.it.springdata}"/>
+                                            </classfiles>
+                                            <sourcefiles encoding="UTF-8">
+                                                <fileset dir="${sources.directory.core}"/>
+                                                <fileset dir="${sources.directory.it.inmemory}"/>
+                                                <fileset dir="${sources.directory.it.redis}"/>
+                                                <fileset dir="${classes.directory.it.consul}"/>
+                                                <fileset dir="${classes.directory.it.springdata}"/>
+                                            </sourcefiles>
+                                        </group>
+                                    </structure>
+                                    <html destdir="${basedir}/target/coverage-report/html"/>
+                                    <xml destfile="${basedir}/target/coverage-report/coverage-report.xml"/>
+                                    <csv destfile="${basedir}/target/coverage-report/coverage-report.csv"/>
+                                </report>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>org.jacoco.ant</artifactId>
+                        <version>${jacoco.version}</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+
+        </plugins>
+    </build>
+</project>

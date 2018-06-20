@@ -1,0 +1,29 @@
+server:
+  port: 9411
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+      instanceId: ${spring.application.name}:${spring.cloud.client.ipAddress}:${server.port}
+
+#zipkin:
+  #storage:
+    #type: elasticsearch
+    #elasticsearch:
+      #cluster: elasticsearch
+      #hosts: http://localhost:9200
+      #index: zipkin
+      #index-shards: 5
+      #index-replicas: 1
+
+---
+spring:
+  profiles: docker
+server:
+  port: ${{SERVER_PORT}:9411}
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_SERVER_LIST}

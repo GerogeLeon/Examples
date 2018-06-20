@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: hello
+  cloud:
+    config:
+      uri: http://user:123456@configserver1:8090/
+      profile: dev
+      label: master
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: guest
+    password: guest
+

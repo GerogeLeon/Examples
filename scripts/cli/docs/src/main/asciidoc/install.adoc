@@ -1,0 +1,27 @@
+To install, make
+sure you have
+https://github.com/spring-projects/spring-boot[Spring Boot CLI]
+(2.0.0 or better):
+
+    $ spring version
+    Spring CLI v2.0.0.M6
+
+E.g. for SDKMan users
+
+```
+$ sdk install springboot 2.0.0.M6
+$ sdk use springboot 2.0.0.M6
+```
+
+and install the Spring Cloud plugin
+
+```
+$ mvn install
+$ spring install org.springframework.cloud:spring-cloud-cli:2.0.0.BUILD-SNAPSHOT
+```
+
+IMPORTANT: **Prerequisites:** to use the encryption and decryption features
+you need the full-strength JCE installed in your JVM (it's not there by default).
+You can download the "Java Cryptography Extension (JCE) Unlimited Strength Jurisdiction Policy Files"
+from Oracle, and follow instructions for installation (essentially replace the 2 policy files
+in the JRE lib/security directory with the ones that you downloaded).

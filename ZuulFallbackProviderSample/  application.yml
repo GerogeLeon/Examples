@@ -1,0 +1,10 @@
+## Part of application.yml
+
+zuul:
+  routes:
+    route1:
+      path: /route1/**
+      strip-prefix: false
+    route2:
+      path: /route2/**
+      strip-prefix: false

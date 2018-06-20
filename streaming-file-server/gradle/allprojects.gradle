@@ -1,0 +1,24 @@
+allprojects {
+  apply plugin: "base"
+
+  group("$project.applicationGroup")
+  version("$project.applicationVersion")
+  defaultTasks("clean", "build")
+
+  clean.doFirst {
+    [
+        project.buildDir,
+        project.file("out"),
+        project.file("bin"),
+        project.file("logs"),
+        project.file("build"),
+        project.file("public"),
+        project.file("target"),
+        project.file("jgiven-reports"),
+        project.file("jgiven-reports"),
+    ].each { delete it }
+    ////if (System.getProperty("os.name").toLowerCase().contains("windows")) return
+    ////delete "$rootDir/file-storage/*"
+    //delete(file("$rootDir/file-storage").listFiles().findAll { ".gitkeep" != it.name })
+  }
+}

@@ -1,0 +1,96 @@
+[submodule "config-repo"]
+	path = config-repo
+	url = git@github.com:spring-cloud-samples/config-repo.git
+[submodule "config"]
+	path = config
+	url = git@github.com:spring-cloud/spring-cloud-config.git
+[submodule "netflix"]
+	path = netflix
+	url = git@github.com:spring-cloud/spring-cloud-netflix.git
+[submodule "configserver"]
+	path = configserver
+	url = git@github.com:spring-cloud-samples/configserver.git
+[submodule "eureka"]
+	path = eureka
+	url = git@github.com:spring-cloud-samples/eureka.git
+[submodule "customers-stores"]
+	path = customers-stores
+	url = git@github.com:spring-cloud-samples/customers-stores.git
+[submodule "hystrix-dashboard"]
+	path = hystrix-dashboard
+	url = git@github.com:spring-cloud-samples/hystrix-dashboard
+[submodule "turbine"]
+	path = turbine
+	url = git@github.com:spring-cloud-samples/turbine
+[submodule "locks"]
+	path = locks
+	url = git@github.com:spring-cloud-samples/locks.git
+[submodule "starters"]
+	path = starters
+	url = git@github.com:spring-cloud/spring-cloud-starters.git
+[submodule "cli"]
+	path = cli
+	url = git@github.com:spring-cloud/spring-cloud-cli.git
+[submodule "cloudfoundry"]
+	path = cloudfoundry
+	url = git@github.com:spring-cloud/spring-cloud-cloudfoundry
+[submodule "bus"]
+	path = bus
+	url = git@github.com:spring-cloud/spring-cloud-bus.git
+[submodule "cluster"]
+	path = cluster
+	url = git@github.com:spring-cloud/spring-cloud-cluster
+[submodule "security"]
+        path = security
+        url = git@github.com:spring-cloud/spring-cloud-security
+[submodule "build"]
+	path = build
+	url = git@github.com:spring-cloud/spring-cloud-build.git
+[submodule "authserver"]
+	path = authserver
+	url = git@github.com:spring-cloud-samples/authserver
+[submodule "sso"]
+	path = sso
+	url = git@github.com:spring-cloud-samples/sso
+[submodule "aws"]
+	path = aws
+	url = git@github.com:spring-cloud/spring-cloud-aws.git
+[submodule "commons"]
+	path = commons
+	url = git@github.com:spring-cloud/spring-cloud-commons
+[submodule "tests"]
+	path = tests
+	url = git@github.com:spring-cloud-samples/tests.git
+[submodule "zookeeper"]
+	path = zookeeper
+	url = git@github.com:spring-cloud/spring-cloud-zookeeper
+[submodule "sleuth"]
+	path = sleuth
+	url = git@github.com:spring-cloud-incubator/spring-cloud-sleuth
+[submodule "stream"]
+	path = stream
+	url = git@github.com:spring-cloud/spring-cloud-stream-starters.git
+[submodule "brewery"]
+	path = brewery
+	url = git@github.com:spring-cloud-samples/brewery
+[submodule "consul"]
+	path = consul
+	url = git@github.com:spring-cloud/spring-cloud-consul
+[submodule "task"]
+	path = task
+	url = git@github.com:spring-cloud/spring-cloud-task
+[submodule "contract"]
+	path = contract
+	url = git@github.com:spring-cloud/spring-cloud-contract
+[submodule "stream-core"]
+	path = stream-core
+	url = git@github.com:spring-cloud/spring-cloud-stream.git
+[submodule "vault"]
+	path = vault
+	url = git@github.com:spring-cloud/spring-cloud-vault.git
+[submodule "gateway"]
+	path = gateway
+	url = git@github.com:spring-cloud/spring-cloud-gateway.git
+[submodule "openfeign"]
+	path = openfeign
+	url = git@github.com:spring-cloud/spring-cloud-openfeign.git

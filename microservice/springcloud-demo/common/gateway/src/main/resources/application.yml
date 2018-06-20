@@ -1,0 +1,57 @@
+server:
+  port: 8086
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    instance-id: ${spring.application.name}:${spring.cloud.client.ipAddress}:${server.port}
+      #instanceId: ${spring.application.name}:${spring.application.instance_id:${random.value}}
+spring:
+  zipkin:
+    base-url: http://127.0.0.1:9411
+  sleuth:
+    sampler:
+      percentage: 1.0
+
+zuul:
+  routes:
+    helloworld:
+      path: /hw/**
+    hello:
+      path: /hello/**
+    world:
+      path: /world/**
+    helloworldfeign:
+      path: /hwf/**
+
+hystrix:
+  command:
+    default:
+      execution:
+        timeout:
+          enabled: true
+        isolation:
+          thread:
+            timeoutInMilliseconds: 60000
+ribbon:
+  ReadTimeout: 60000
+  ConnectTimeout: 3000
+endpoints:
+  routes:
+    enabled: true
+    sensitive: false
+  sensitive: false
+
+---
+spring:
+  profiles: docker
+  zipkin:
+    base-url: http://track:9411
+server:
+  port: ${{SERVER_PORT}:8086}
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_SERVER_LIST}

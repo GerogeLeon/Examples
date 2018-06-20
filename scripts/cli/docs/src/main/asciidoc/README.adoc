@@ -1,0 +1,15 @@
+image:https://circleci.com/gh/spring-cloud/spring-cloud-cli.svg?style=svg["CircleCI", link="https://circleci.com/gh/spring-cloud/spring-cloud-cli"]
+
+include::intro.adoc[]
+
+== Installation
+
+include::install.adoc[]
+
+== Building
+
+include::https://raw.githubusercontent.com/spring-cloud/spring-cloud-build/master/docs/src/main/asciidoc/building.adoc[]
+
+== Contributing
+
+include::https://raw.githubusercontent.com/spring-cloud/spring-cloud-build/master/docs/src/main/asciidoc/contributing.adoc[]

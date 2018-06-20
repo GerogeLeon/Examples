@@ -1,0 +1,112 @@
+apply plugin: 'maven'
+apply plugin: 'signing'
+
+uploadArchives.dependsOn { [check] }
+
+task sourcesJar(type: Jar) {
+	classifier 'sources'
+	from sourceSets.main.allSource
+}
+
+task groovydocJar(type: Jar, dependsOn: groovydoc) {
+	classifier 'groovydoc'
+	from groovydoc.destinationDir
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+	classifier 'javadoc'
+	from javadoc.destinationDir
+}
+
+artifacts {
+	archives sourcesJar
+	archives groovydocJar
+	archives javadocJar
+}
+
+ext {
+	resolveRepoName = { Project project ->
+		resolvedRepoName = "libs-${resolveVersion(project.version)}-local"
+		logger.lifecycle("For project [$project.name] with " +
+				"version [$project.version] the resolved Artifactory repo is [$resolvedRepoName]")
+		return resolvedRepoName
+	}
+
+	isReleaseVersion = version.endsWith("RELEASE")
+	isMilestoneVersion = version.matches('[0-9].[0-9].[0-9].M[0-9]+') || version.matches('[0-9].[0-9].[0-9].RC[0-9]+')
+	isSnapshotVersion = !(isReleaseVersion || isMilestoneVersion)
+	isReleaseToCentral = project.hasProperty('central')
+
+	resolveVersion = { String version ->
+		if (isMilestoneVersion) return 'milestone'
+		if (isReleaseVersion) return 'release'
+		return 'snapshot'
+	}
+
+	repoUrl = isReleaseToCentral ?
+			"https://oss.sonatype.org/service/local/staging/deploy/maven2/" :
+			"https://repo.spring.io/${resolveRepoName(project)}"
+}
+
+if (isReleaseToCentral) {
+	signing {
+		sign configurations.archives
+	}
+}
+
+afterEvaluate {
+	uploadArchives {
+		repositories {
+			mavenDeployer {
+				// POM signature
+				if (isReleaseVersion && isReleaseToCentral) {
+					beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+				}
+				// Target repository
+				String repoUserName = isReleaseToCentral ? sonatypeUsername : repoUser
+				String repoPass = isReleaseToCentral ? sonatypePassword : repoPass
+				repository(url: repoUrl) {
+					authentication(userName: repoUserName, password: repoPass)
+				}
+				pom.project {
+					name "$project.name"
+					packaging 'jar'
+					description 'Spring Cloud Contract Gradle Plugin'
+					url 'https://github.com/spring-cloud/spring-cloud-contract'
+					inceptionYear '2014'
+
+					scm {
+						connection 'scm:git:git@github.com:spring-cloud/spring-cloud-contract.git'
+						developerConnection 'scm:git:git@github.com:spring-cloud/spring-cloud-contract.git'
+						url 'https://github.com/spring-cloud/spring-cloud-contract'
+					}
+
+					licenses {
+						license {
+							name 'The Apache License, Version 2.0'
+							url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+						}
+					}
+
+					developers {
+						developer {
+							id 'jkubrynski'
+							name 'Jakub Kubrynski'
+							email 'jk ATT codearte DOTT io'
+						}
+						developer {
+							id 'marcingrzejszczak'
+							name 'Marcin Grzejszczak'
+							email 'mgrzejszczak ATT pivotal DOTT io'
+						}
+						developer {
+							id 'dsyer'
+							name 'Dave Syer'
+							email 'dsyer ATT pivotal DOTT io'
+						}
+					}
+				}
+			}
+		}
+	}
+}

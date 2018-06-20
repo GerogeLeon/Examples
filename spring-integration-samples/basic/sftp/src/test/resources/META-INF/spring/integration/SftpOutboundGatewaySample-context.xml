@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:int-sftp="http://www.springframework.org/schema/integration/sftp"
+	xsi:schemaLocation="http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/integration/sftp http://www.springframework.org/schema/integration/sftp/spring-integration-sftp.xsd">
+
+	<import resource="SftpSampleCommon.xml"/>
+
+	<int:gateway id="gw" service-interface="org.springframework.integration.samples.sftp.ToSftpFlowGateway"
+		default-request-channel="inbound"/>
+
+	<int-sftp:outbound-gateway id="gatewayLS"
+		session-factory="sftpSessionFactory"
+		request-channel="inbound"
+		command="ls"
+		command-options=""
+		expression="payload"
+		reply-channel="toSplitter">
+		<int-sftp:request-handler-advice-chain>
+			<int:retry-advice />
+		</int-sftp:request-handler-advice-chain>
+	</int-sftp:outbound-gateway>
+
+	<int:splitter input-channel="toSplitter" output-channel="toGet"/>
+
+	<int-sftp:outbound-gateway id="gatewayGET"
+		local-directory="#{ T(System).getProperty('java.io.tmpdir')}"
+		session-factory="sftpSessionFactory"
+		request-channel="toGet"
+		reply-channel="toRm"
+		command="get"
+		command-options="-P"
+		expression="payload.remoteDirectory + payload.filename">
+		<int-sftp:request-handler-advice-chain>
+			<int:retry-advice />
+		</int-sftp:request-handler-advice-chain>
+	</int-sftp:outbound-gateway>
+
+	<int-sftp:outbound-gateway id="gatewayRM" reply-channel="aggregateResultsChannel"
+		session-factory="sftpSessionFactory"
+		expression="headers['file_remoteDirectory'] + headers['file_remoteFile']"
+		request-channel="toRm"
+		command="rm">
+		<int-sftp:request-handler-advice-chain>
+			<int:retry-advice />
+		</int-sftp:request-handler-advice-chain>
+	</int-sftp:outbound-gateway>
+
+	<int:aggregator input-channel="aggregateResultsChannel"/>
+
+</beans>

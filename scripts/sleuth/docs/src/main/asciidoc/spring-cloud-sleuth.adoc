@@ -1,0 +1,1237 @@
+:github-tag: master
+:github-repo: spring-cloud/spring-cloud-sleuth
+:github-raw: https://raw.githubusercontent.com/{github-repo}/{github-tag}
+:github-code: https://github.com/{github-repo}/tree/{github-tag}
+:toc: left
+:toclevels: 8
+:nofooter:
+:sectlinks: true
+
+Spring Cloud Sleuth
+====================
+Adrian Cole, Spencer Gibb, Marcin Grzejszczak, Dave Syer, Jay Bryant
+
+*{spring-cloud-version}*
+
+:doctype: book
+
+include::intro.adoc[]
+
+include::features.adoc[]
+
+=== Introduction to Brave
+
+IMPORTANT: Starting with version `2.0.0`, Spring Cloud Sleuth uses
+https://github.com/openzipkin/brave[Brave] as the tracing library.
+For your convenience, we embed part of the Brave's docs here.
+
+// TODO: We should link, not include. We have no idea when that content will change and so no way to keep our copy current. I also have no idea what I should edit, because I don't know what is ours and what is Brave's.
+
+Brave is a library used to capture and report latency information about distributed operations to Zipkin.
+Most users do not use Brave directly. They use libraries or frameworks rather than employ Brave on their behalf.
+
+This module includes a tracer that creates and joins spans that model the latency of potentially distributed work.
+It also includes libraries to propagate the trace context over network boundaries (for example, with HTTP headers).
+
+==== Tracing
+
+Most importantly, you need a `brave.Tracer`, configured to https://github.com/openzipkin/zipkin-reporter-java[report to Zipkin].
+
+The following example setup sends trace data (spans) to Zipkin over HTTP (as opposed to Kafka):
+
+```java
+
+class MyClass {
+
+    private final Tracer tracer;
+
+    // Tracer will be autowired
+    MyClass(Tracer tracer) {
+        this.tracer = tracer;
+    }
+
+    void doSth() {
+        Span span = tracer.newTrace().name("encode").start();
+        // ...
+    }
+}
+```
+
+IMPORTANT: If your span contains a name longer than 50 chars, then that name is truncated to 50 chars.
+Your names have to be explicit and concrete.
+Big names lead to latency issues and sometimes even thrown exceptions.
+
+The tracer creates and joins spans that model the latency of potentially distributed work.
+It can employ sampling to reduce overhead during the process, to reduce the amount of data sent to Zipkin, or both.
+
+Spans returned by a tracer report data to Zipkin when finished or do nothing if unsampled.
+After starting a span, you can annotate events of interest or add tags containing details or lookup keys.
+
+Spans have a context that includes trace identifiers that place the span at the correct spot in the tree representing the distributed operation.
+
+==== Local Tracing
+
+When tracing local code, you can run it inside a span, as shown in the following example:
+
+```java
+Span span = tracer.newTrace().name("encode").start();
+try {
+  doSomethingExpensive();
+} finally {
+  span.finish();
+}
+```
+
+In the preceding example, the span is the root of the trace.
+In many cases, the span is part of an existing trace.
+When this is the case, call `newChild` instead of `newTrace`, as shown in the following example:
+
+```java
+Span span = tracer.newChild(root.context()).name("encode").start();
+try {
+  doSomethingExpensive();
+} finally {
+  span.finish();
+}
+```
+
+==== Customizing Spans
+
+Once you have a span, you can add tags to it.
+The tags can be used as lookup keys or details.
+For example, you might add a tag with your runtime version, as shown in the following example:
+
+```java
+span.tag("clnt/finagle.version", "6.36.0");
+```
+
+When exposing the ability to customize spans to third parties, prefer `brave.SpanCustomizer` as opposed to `brave.Span`.
+The former is simpler to understand and test and does not tempt users with span lifecycle hooks.
+
+```java
+interface MyTraceCallback {
+  void request(Request request, SpanCustomizer customizer);
+}
+```
+
+Since `brave.Span` implements `brave.SpanCustomizer`, you can pass it to users, as shown in the following example:
+
+```java
+for (MyTraceCallback callback : userCallbacks) {
+  callback.request(request, span);
+}
+```
+
+==== Implicitly Looking up the Current Span
+
+Sometimes, you do not know if a trace is in progress or not, and you do not want users to do null checks.
+`brave.CurrentSpanCustomizer` handles this problem by adding data to any span that's in progress or drops, as shown in the following example:
+
+Ex.
+```java
+// The user code can then inject this without a chance of it being null.
+@Autowire SpanCustomizer span;
+
+void userCode() {
+  span.annotate("tx.started");
+  ...
+}
+```
+
+==== RPC tracing
+
+TIP: Check for https://github.com/openzipkin/sleuth/tree/master/instrumentation[instrumentation written here] and http://zipkin.io/pages/existing_instrumentations.html[Zipkin's list] before rolling your own RPC instrumentation.
+
+RPC tracing is often done automatically by interceptors. Behind the scenes, they add tags and events that relate to their role in an RPC operation.
+
+The following example shows how to add a client span:
+
+```java
+// before you send a request, add metadata that describes the operation
+span = tracer.newTrace().name("get").type(CLIENT);
+span.tag("clnt/finagle.version", "6.36.0");
+span.tag(TraceKeys.HTTP_PATH, "/api");
+span.remoteEndpoint(Endpoint.builder()
+    .serviceName("backend")
+    .ipv4(127 << 24 | 1)
+    .port(8080).build());
+
+// when the request is scheduled, start the span
+span.start();
+
+// if you have callbacks for when data is on the wire, note those events
+span.annotate(Constants.WIRE_SEND);
+span.annotate(Constants.WIRE_RECV);
+
+// when the response is complete, finish the span
+span.finish();
+```
+
+===== One-Way tracing
+
+Sometimes, you need to model an asynchronous operation where there is a
+request but no response. In normal RPC tracing, you use `span.finish()`
+to indicate that the response was received. In one-way tracing, you use
+`span.flush()` instead, as you do not expect a response.
+
+The following example shows how a client might model a one-way operation:
+```java
+// start a new span representing a client request
+oneWaySend = tracer.newSpan(parent).kind(Span.Kind.CLIENT);
+
+// Add the trace context to the request, so it can be propagated in-band
+tracing.propagation().injector(Request::addHeader)
+                     .inject(oneWaySend.context(), request);
+
+// fire off the request asynchronously, totally dropping any response
+request.execute();
+
+// start the client side and flush instead of finish
+oneWaySend.start().flush();
+```
+
+The following example shows how a server might handle a one-way operation:
+```java
+// pull the context out of the incoming request
+extractor = tracing.propagation().extractor(Request::getHeader);
+
+// convert that context to a span which you can name and add tags to
+oneWayReceive = nextSpan(tracer, extractor.extract(request))
+    .name("process-request")
+    .kind(SERVER)
+    ... add tags etc.
+
+// start the server side and flush instead of finish
+oneWayReceive.start().flush();
+
+// you should not modify this span anymore as it is complete. However,
+// you can create children to represent follow-up work.
+next = tracer.newSpan(oneWayReceive.context()).name("step2").start();
+```
+
+NOTE: The propagation logic shown in the preceding example is a simplified version of our [http handlers](https://github.com/openzipkin/sleuth/tree/master/instrumentation/http#http-server).
+
+You can find a working example of a one-way span [here](src/test/java/sleuth/features/async/OneWaySpanTest.java).
+
+== Sampling
+
+Sampling may be employed to reduce the data collected and reported out of process.
+When a span is not sampled, it adds no overhead (a noop).
+
+Sampling is an up-front decision, meaning that the decision to report data is made at the first operation in a trace and that decision is propagated downstream.
+
+By default, a global sampler applies a single rate to all traced operations.
+`Tracer.Builder.sampler` controls this setting, and it defaults to tracing every request.
+
+=== Declarative sampling
+
+Some applications need to sample based on the type or annotations of a java method.
+
+Most users use a framework interceptor to automate this sort of policy.
+The following example shows how that might work internally:
+
+```java
+// derives a sample rate from an annotation on a java method
+DeclarativeSampler<Traced> sampler = DeclarativeSampler.create(Traced::sampleRate);
+
+@Around("@annotation(traced)")
+public Object traceThing(ProceedingJoinPoint pjp, Traced traced) throws Throwable {
+  Span span = tracing.tracer().newTrace(sampler.sample(traced))...
+  try {
+    return pjp.proceed();
+  } finally {
+    span.finish();
+  }
+}
+```
+
+=== Custom sampling
+
+Depending on what the operation is, you may want to apply different policies.
+For example, you might not want to trace requests to static resources such as images, or you might want to trace all requests to a new api.
+
+Most users use a framework interceptor to automate this sort of policy.
+The following example shows how that might work internally:
+
+```java
+Span newTrace(Request input) {
+  SamplingFlags flags = SamplingFlags.NONE;
+  if (input.url().startsWith("/experimental")) {
+    flags = SamplingFlags.SAMPLED;
+  } else if (input.url().startsWith("/static")) {
+    flags = SamplingFlags.NOT_SAMPLED;
+  }
+  return tracer.newTrace(flags);
+}
+```
+
+NOTE: The preceding example forms the basis for the built-in https://github.com/openzipkin/sleuth/tree/master/instrumentation/http[http sampler].
+
+=== Sampling in Spring Cloud Sleuth
+
+By default Spring Cloud Sleuth sets all spans to non-exportable.
+That means that traces appear in logs but not in any remote store.
+For testing the default is often enough, and it probably is all you need if you use only the logs (for example, with an ELK aggregator).
+If you export span data to Zipkin, there is also an `Sampler.ALWAYS_SAMPLE` setting that exports everything and a `ProbabilityBasedSampler` setting that samples a fixed fraction of spans.
+
+NOTE: The `ProbabilityBasedSampler` is the default if you use `spring-cloud-sleuth-zipkin`.
+You can configure the exports by setting `spring.sleuth.sampler.probability`.
+The passed value needs to be a double from `0.0` to `1.0`.
+
+A sampler can be installed by creating a bean definition, as shown in the following example:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/documentation/SpringCloudSleuthDocTests.java[tags=always_sampler,indent=0]
+----
+
+TIP: You can set the HTTP header `X-B3-Flags` to `1`, or, when doing messaging, you can set the `spanFlags` header to `1`.
+Doing so forces the current span to be exportable regardless of the sampling decision.
+
+== Propagation
+
+Propagation is needed to ensure activities originating from the same root are collected together in the same trace.
+The most common propagation approach is to copy a trace context from a client by sending an RPC request to a server receiving it.
+
+For example, when a downstream HTTP call is made, its trace context is encoded as request headers and sent along with it, as shown in the following image:
+
+```
+   Client Span                                                Server Span
+┌──────────────────┐                                       ┌──────────────────┐
+│                  │                                       │                  │
+│   TraceContext   │           Http Request Headers        │   TraceContext   │
+│ ┌──────────────┐ │          ┌───────────────────┐        │ ┌──────────────┐ │
+│ │ TraceId      │ │          │ X─B3─TraceId      │        │ │ TraceId      │ │
+│ │              │ │          │                   │        │ │              │ │
+│ │ ParentSpanId │ │ Extract  │ X─B3─ParentSpanId │ Inject │ │ ParentSpanId │ │
+│ │              ├─┼─────────>│                   ├────────┼>│              │ │
+│ │ SpanId       │ │          │ X─B3─SpanId       │        │ │ SpanId       │ │
+│ │              │ │          │                   │        │ │              │ │
+│ │ Sampled      │ │          │ X─B3─Sampled      │        │ │ Sampled      │ │
+│ └──────────────┘ │          └───────────────────┘        │ └──────────────┘ │
+│                  │                                       │                  │
+└──────────────────┘                                       └──────────────────┘
+```
+
+The names above are from https://github.com/openzipkin/b3-propagation[B3 Propagation], which is built-in to Brave and has implementations in many languages and frameworks.
+
+Most users use a framework interceptor to automate propagation.
+The next two examples show how that might work for a client and a server.
+
+The following example shows how client-side propagation might work:
+
+```java
+// configure a function that injects a trace context into a request
+injector = tracing.propagation().injector(Request.Builder::addHeader);
+
+// before a request is sent, add the current span's context to it
+injector.inject(span.context(), request);
+```
+
+The following example shows how server-side propagation might work:
+
+```java
+// configure a function that extracts the trace context from a request
+extractor = tracing.propagation().extractor(Request::getHeader);
+
+// when a server receives a request, it joins or starts a new trace
+span = tracer.nextSpan(extractor.extract(request));
+```
+
+=== Propagating extra fields
+
+Sometimes you need to propagate extra fields, such as a request ID or an alternate trace context.
+For example, if you are in a Cloud Foundry environment, you might want to pass the request ID, as shown in the following example:
+
+```java
+// when you initialize the builder, define the extra field you want to propagate
+tracingBuilder.propagationFactory(
+  ExtraFieldPropagation.newFactory(B3Propagation.FACTORY, "x-vcap-request-id")
+);
+
+// later, you can tag that request ID or use it in log correlation
+requestId = ExtraFieldPropagation.get("x-vcap-request-id");
+```
+
+You may also need to propagate a trace context that you are not using.
+For example, you may be in an Amazon Web Services environment but not be reporting data to X-Ray.
+To ensure X-Ray can co-exist correctly, pass-through its tracing header, as shown in the following example:
+
+```java
+tracingBuilder.propagationFactory(
+  ExtraFieldPropagation.newFactory(B3Propagation.FACTORY, "x-amzn-trace-id")
+);
+```
+
+==== Prefixed fields
+
+If they follow a common pattern, you can also prefix fields.
+The following example shows how to propagate `x-vcap-request-id` the field as-is but send the `country-code` and `user-id` fields on the wire as `x-baggage-country-code` and `x-baggage-user-id`, respectively:
+
+```java
+tracingBuilder.propagationFactory(
+  ExtraFieldPropagation.newFactoryBuilder(B3Propagation.FACTORY)
+                       .addField("x-vcap-request-id")
+                       .addPrefixedFields("baggage-", Arrays.asList("country-code", "user-id"))
+                       .build()
+);
+```
+
+Later, you can call the following code to affect the country code of the current trace context:
+
+```java
+ExtraFieldPropagation.set("country-code", "FO");
+String countryCode = ExtraFieldPropagation.get("country-code");
+```
+
+Alternatively, if you have a reference to a trace context, you can use it explicitly, as shown in the following example:
+
+```java
+ExtraFieldPropagation.set(span.context(), "country-code", "FO");
+String countryCode = ExtraFieldPropagation.get(span.context(), "country-code");
+```
+
+IMPORTANT: A difference from previous versions of Sleuth is that, with Brave, you must pass the list of baggage keys.
+There are two properties to achieve this.
+With the `spring.sleuth.baggage-keys`, you set keys that get prefixed with `baggage-` for HTTP calls and `baggage_` for messaging.
+You can also use the `spring.sleuth.propagation-keys` property to pass a list of prefixed keys that are whitelisted without any prefix.
+
+==== Extracting a Propagated Context
+
+The `TraceContext.Extractor<C>` reads trace identifiers and sampling status from an incoming request or message.
+The carrier is usually a request object or headers.
+
+This utility is used in standard instrumentation (such as `[HttpServerHandler](../instrumentation/http/src/main/java/sleuth/http/HttpServerHandler.java)`) but can also be used for custom RPC or messaging code.
+
+`TraceContextOrSamplingFlags` is usually used only with `Tracer.nextSpan(extracted)`, unless you are
+sharing span IDs between a client and a server.
+
+==== Sharing span IDs between Client and Server
+
+A normal instrumentation pattern is to create a span representing the server side of an RPC.
+`Extractor.extract` might return a complete trace context when applied to an incoming client request.
+`Tracer.joinSpan` attempts to continue this trace, using the same span ID if supported or creating a child span
+if not. When the span ID is shared, the reported data includes a flag saying so.
+
+The following image shows an example of B3 propagation:
+
+```
+                              ┌───────────────────┐      ┌───────────────────┐
+ Incoming Headers             │   TraceContext    │      │   TraceContext    │
+┌───────────────────┐(extract)│ ┌───────────────┐ │(join)│ ┌───────────────┐ │
+│ X─B3-TraceId      │─────────┼─┼> TraceId      │ │──────┼─┼> TraceId      │ │
+│                   │         │ │               │ │      │ │               │ │
+│ X─B3-ParentSpanId │─────────┼─┼> ParentSpanId │ │──────┼─┼> ParentSpanId │ │
+│                   │         │ │               │ │      │ │               │ │
+│ X─B3-SpanId       │─────────┼─┼> SpanId       │ │──────┼─┼> SpanId       │ │
+└───────────────────┘         │ │               │ │      │ │               │ │
+                              │ │               │ │      │ │  Shared: true │ │
+                              │ └───────────────┘ │      │ └───────────────┘ │
+                              └───────────────────┘      └───────────────────┘
+```
+
+Some propagation systems forward only the parent span ID, detected when `Propagation.Factory.supportsJoin() == false`.
+In this case, a new span ID is always provisioned, and the incoming context determines the parent ID.
+
+The following image shows an example of AWS propagation:
+```
+                              ┌───────────────────┐      ┌───────────────────┐
+ x-amzn-trace-id              │   TraceContext    │      │   TraceContext    │
+┌───────────────────┐(extract)│ ┌───────────────┐ │(join)│ ┌───────────────┐ │
+│ Root              │─────────┼─┼> TraceId      │ │──────┼─┼> TraceId      │ │
+│                   │         │ │               │ │      │ │               │ │
+│ Parent            │─────────┼─┼> SpanId       │ │──────┼─┼> ParentSpanId │ │
+└───────────────────┘         │ └───────────────┘ │      │ │               │ │
+                              └───────────────────┘      │ │  SpanId: New  │ │
+                                                         │ └───────────────┘ │
+                                                         └───────────────────┘
+```
+
+Note: Some span reporters do not support sharing span IDs.
+For example, if you set `Tracing.Builder.spanReporter(amazonXrayOrGoogleStackdrive)`, you should disable join by setting `Tracing.Builder.supportsJoin(false)`.
+Doing so forces a new child span on `Tracer.joinSpan()`.
+
+==== Implementing Propagation
+
+`TraceContext.Extractor<C>` is implemented by a `Propagation.Factory` plugin.
+Internally, this code creates the union type, `TraceContextOrSamplingFlags`, with one of the following:
+* `TraceContext` if trace and span IDs were present.
+* `TraceIdContext` if a trace ID was present but span IDs were not present.
+* `SamplingFlags` if no identifiers were present.
+
+Some `Propagation` implementations carry extra data from the point of extraction (for example, reading incoming headers) to injection (for example, writing outgoing headers).
+For example, it might carry a request ID.
+When implementations have extra data, they handle it as follows:
+* If a `TraceContext` were extracted, add the extra data as `TraceContext.extra()`.
+* Otherwise, add it as `TraceContextOrSamplingFlags.extra()`, which `Tracer.nextSpan` handles.
+
+== Current Tracing Component
+
+Brave supports a "`current tracing component`" concept, which should only be used when you have no other way to get a reference.
+This was made for JDBC connections, as they often initialize prior to the tracing component.
+
+The most recent tracing component instantiated is available through `Tracing.current()`.
+You can also use `Tracing.currentTracer()` to get only the tracer.
+If you use either of these methods, do not cache the result.
+Instead, look them up each time you need them.
+
+== Current Span
+
+Brave supports a "`current span`" concept which represents the in-flight operation.
+You can use `Tracer.currentSpan()` to add custom tags to a span and `Tracer.nextSpan()` to create a child of whatever is in-flight.
+
+=== Setting a span in scope manually
+
+When writing new instrumentation, it is important to place a span you created in scope as the current span.
+Not only does doing so let users access it with `Tracer.currentSpan()`, but it also allows customizations such as SLF4J MDC to see the current trace IDs.
+
+`Tracer.withSpanInScope(Span)` facilitates this and is most conveniently employed by using the try-with-resources idiom.
+Whenever external code might be invoked (such as proceeding an interceptor or otherwise), place the span in scope, as shown in the following example:
+
+```java
+try (SpanInScope ws = tracer.withSpanInScope(span)) {
+  return inboundRequest.invoke();
+} finally { // note the scope is independent of the span
+  span.finish();
+}
+```
+
+In edge cases, you may need to clear the current span temporarily (for example, launching a task that should not be associated with the current request). To do tso, pass null to `withSpanInScope`, as shown in the following example:
+
+```java
+try (SpanInScope cleared = tracer.withSpanInScope(null)) {
+  startBackgroundThread();
+}
+```
+
+== Instrumentation
+
+Spring Cloud Sleuth automatically instruments all your Spring applications, so you should not have to do anything to activate it.
+The instrumentation is added by using a variety of technologies according to the stack that is available. For example, for a servlet web application, we use a `Filter`, and, for Spring Integration, we use `ChannelInterceptors`.
+
+You can customize the keys used in span tags.
+To limit the volume of span data, an HTTP request is, by default, tagged only with a handful of metadata, such as the status code, the host, and the URL.
+You can add request headers by configuring `spring.sleuth.keys.http.headers` (a list of header names).
+
+NOTE: Tags are collected and exported only if there is a `Sampler` that allows it. By default, there is no such `Sampler`, to ensure that there is no danger of accidentally collecting too much data without configuring something).
+
+== Span lifecycle
+
+You can do the following operations on the Span by means of `brave.Tracer`:
+
+* <<creating-and-finishing-spans, start>>: When you start a span, its name is assigned and the start timestamp is recorded.
+* <<creating-and-finishing-spans, close>>: The span gets finished (the end time of the span is recorded) and, if the span is sampled, it is eligible for collection (for example, to Zipkin).
+* <<continuing-spans, continue>>: A new instance of span is created.
+It is a copy of the one that it continues.
+* <<continuing-spans, detach>>: The span does not get stopped or closed.
+It only gets removed from the current thread.
+* <<creating-spans-with-explicit-parent, create with explicit parent>>: You can create a new span and set an explicit parent for it.
+
+TIP: Spring Cloud Sleuth creates an instance of `Tracer` for you. In order to use it, you can autowire it.
+
+=== Creating and finishing spans [[creating-and-finishing-spans]]
+
+You can manually create spans by using the `Tracer`, as shown in the following example:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/documentation/SpringCloudSleuthDocTests.java[tags=manual_span_creation,indent=0]
+----
+
+In the preceding example, we could see how to create a new instance of the span.
+If there is already a span in this thread, it becomes the parent of the new span.
+
+IMPORTANT: Always clean after you create a span. Also, always finish any span that you want to send to Zipkin.
+
+IMPORTANT: If your span contains a name greater than 50 chars, that name is truncated to 50 chars.
+Your names have to be explicit and concrete. Big names lead to latency issues and sometimes even exceptions.
+
+[[continuing-spans]]
+=== Continuing Spans
+
+Sometimes, you do not want to create a new span but you want to continue one. An example of such a
+situation might be as follows:
+
+* *AOP*: If there was already a span created before an aspect was reached, you might not want to create a new span.
+* *Hystrix*: Executing a Hystrix command is most likely a logical part of the current processing.
+It is in fact merely a technical implementation detail that you would not necessarily want to reflect in tracing as a separate being.
+
+To continue a span, you can use `brave.Tracer`, as shown in the following example:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/documentation/SpringCloudSleuthDocTests.java[tags=manual_span_continuation,indent=0]
+----
+
+[[creating-spans-with-explicit-parent]]
+=== Creating a Span with an explicit Parent
+
+You might want to start a new span and provide an explicit parent of that span.
+Assume that the parent of a span is in one thread and you want to start a new span in another thread.
+In Brave, whenever you call `nextSpan()`, it creates a span in reference to the span that is currently in scope.
+You can put the span in scope and then call `nextSpan()`, as shown in the following example:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/documentation/SpringCloudSleuthDocTests.java[tags=manual_span_joining,indent=0]
+----
+
+IMPORTANT: After creating such a span, you must finish it. Otherwise it is not reported (for example, to Zipkin).
+
+== Naming spans
+
+Picking a span name is not a trivial task. A span name should depict an operation name.
+The name should be low cardinality, so it should not include identifiers.
+
+Since there is a lot of instrumentation going on, some span names are artificial:
+
+* `controller-method-name` when received by a Controller with a method name of `controllerMethodName`
+* `async` for asynchronous operations done with wrapped `Callable` and `Runnable` interfaces.
+* Methods annotated with `@Scheduled` return the simple name of the class.
+
+Fortunately, for asynchronous processing, you can provide explicit naming.
+
+=== `@SpanName` Annotation
+
+You can name the span explicitly by using the `@SpanName` annotation, as shown in the following example:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/documentation/SpringCloudSleuthDocTests.java[tags=span_name_annotation,indent=0]
+----
+
+In this case, when processed in the following manner, the span is named `calculateTax`:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/documentation/SpringCloudSleuthDocTests.java[tags=span_name_annotated_runnable_execution,indent=0]
+----
+
+=== `toString()` method
+
+It is pretty rare to create separate classes for `Runnable` or `Callable`.
+Typically, one creates an anonymous instance of those classes.
+You cannot annotate such classes.
+To overcome that limitation, if there is no `@SpanName` annotation present, we check whether the class has a custom implementation of the `toString()` method.
+
+Running such code leads to creating a span named `calculateTax`, as shown in the following example:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/documentation/SpringCloudSleuthDocTests.java[tags=span_name_to_string_runnable_execution,indent=0]
+----
+
+== Managing Spans with Annotations
+
+You can manage spans with a variety of annotations.
+
+=== Rationale
+
+There are a number of good reasons to manage spans with annotations, including:
+
+* API-agnostic means to collaborate with a span. Use of annotations lets users add to a span with no library dependency on a span api.
+Doing so lets Sleuth change its core API to create less impact to user code.
+* Reduced surface area for basic span operations. Without this feature, you must use the span api, which has lifecycle commands that could be used incorrectly.
+By only exposing scope, tag, and log functionality, you can collaborate without accidentally breaking span lifecycle.
+* Collaboration with runtime generated code. With libraries such as Spring Data and Feign, the implementations of interfaces are generated at runtime.
+Consequently, span wrapping of objects was tedious.
+Now you can provide annotations over interfaces and the arguments of those interfaces.
+
+=== Creating New Spans
+
+If you do not want to create local spans manually, you can use the `@NewSpan` annotation.
+Also, we provide the `@SpanTag` annotation to add tags in an automated fashion.
+
+Now we can consider some examples of usage.
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/annotation/SleuthSpanCreatorAspectTests.java[tags=annotated_method,indent=0]
+----
+
+Annotating the method without any parameter leads to creating a new span whose name equals the annotated method name.
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/annotation/SleuthSpanCreatorAspectTests.java[tags=custom_name_on_annotated_method,indent=0]
+----
+
+If you provide the value in the annotation (either directly or by setting the `name` parameter), the created span has the provided value as the name.
+
+[source,java]
+----
+// method declaration
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/annotation/SleuthSpanCreatorAspectTests.java[tags=custom_name_and_tag_on_annotated_method,indent=0]
+
+// and method execution
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/annotation/SleuthSpanCreatorAspectTests.java[tags=execution,indent=0]
+----
+
+You can combine both the name and a tag. Let's focus on the latter.
+In this case, the value of the annotated method's parameter runtime value becomes the value of the tag.
+In our sample, the tag key is `testTag`, and the tag value is `test`.
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/annotation/SleuthSpanCreatorAspectTests.java[tags=name_on_implementation,indent=0]
+----
+
+You can place the `@NewSpan` annotation on both the class and an interface.
+If you override the interface's method and provide a different value for the `@NewSpan` annotation, the most
+concrete one wins (in this case `customNameOnTestMethod3` is set).
+
+=== Continuing Spans
+
+If you want to add tags and annotations to an existing span, you can use the `@ContinueSpan` annotation, as shown in the following example:
+
+[source,java]
+----
+// method declaration
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/annotation/SleuthSpanCreatorAspectTests.java[tags=continue_span,indent=0]
+
+// method execution
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/annotation/SleuthSpanCreatorAspectTests.java[tags=continue_span_execution,indent=0]
+----
+
+(Note that, in contrast with the `@NewSpan` annotation ,you can also add logs with the `log` parameter.)
+
+That way, the span gets continued and:
+
+* Log entries named `testMethod11.before` and `testMethod11.after` are created.
+* If an exception is thrown, a log entry named `testMethod11.afterFailure` is also created.
+* A tag with a key of `testTag11` and a value of `test` is created.
+
+=== Advanced Tag Setting
+
+There are 3 different ways to add tags to a span. All of them are controlled by the `SpanTag` annotation.
+The precedence is as follows:
+
+. Try with a bean of `TagValueResolver` type and a provided name.
+. If the bean name has not been provided, try to evaluate an expression.
+We search for a `TagValueExpressionResolver` bean.
+The default implementation uses SPEL expression resolution.
+**IMPORTANT** You can only reference properties from the SPEL expression. Method execution is not allowed due to security constraints.
+. If we do not find any expression to evaluate, return the `toString()` value of the parameter.
+
+==== Custom extractor
+
+The value of the tag for the following method is computed by an implementation of `TagValueResolver` interface.
+Its class name has to be passed as the value of the `resolver` attribute.
+
+Consider the following annotated method:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/annotation/SpanTagAnnotationHandlerTests.java[tags=resolver_bean,indent=0]
+----
+
+Now further consider the following `TagValueResolver` bean implementation:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/annotation/SpanTagAnnotationHandlerTests.java[tags=custom_resolver,indent=0]
+----
+
+The two preceding examples lead to setting a tag value equal to `Value from myCustomTagValueResolver`.
+
+==== Resolving Expressions for a Value
+
+Consider the following annotated method:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/annotation/SpanTagAnnotationHandlerTests.java[tags=spel,indent=0]
+----
+
+No custom implementation of a `TagValueExpressionResolver` leads to evaluation of the SPEL expression, and a tag with a value of `4 characters` is set on the span.
+If you want to use some other expression resolution mechanism, you can create your own implementation of the bean.
+
+==== Using the `toString()` method
+
+Consider the following annotated method:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/annotation/SpanTagAnnotationHandlerTests.java[tags=toString,indent=0]
+----
+
+Running the preceding method with a value of `15` leads to setting a tag with a String value of `"15"`.
+
+== Customizations
+
+// TODO: Update this
+
+//=== Spring Integration
+
+=== HTTP
+
+If a customization of client / server parsing of the HTTP related spans is required,
+just register a bean of type `brave.http.HttpClientParser` or
+`brave.http.HttpServerParser`. If client /server sampling is required, just
+register a bean of type `brave.http.HttpSampler` and name the bean
+ `sleuthClientSampler` for client sampler and `sleuthServerSampler` for server sampler.
+ For your convenience the `@ClientSampler` and `@ServerSampler`
+ annotations can be used to inject the proper beans or to
+ reference the bean names via their static String `NAME` fields.
+
+Check out Brave's code to see an example of how to make a path-based sampler
+https://github.com/openzipkin/brave/tree/master/instrumentation/http#sampling-policy
+
+If you want to completely rewrite the `HttpTracing` bean you can use the `SkipPatternProvider`
+interface to retrieve the URL `Pattern` for spans that should be not sampled. Below you can see
+an example of usage of `SkipPatternProvider` inside a server side, `HttpSampler`.
+
+[source,java]
+----
+@Configuration
+class Config {
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/instrument/web/TraceFilterWebIntegrationTests.java[tags=custom_server_sampler,indent=2]
+}
+----
+
+=== `TracingFilter`
+
+You can also modify the behavior of the `TracingFilter`, which is the component that is responsible for processing the input HTTP request and adding tags basing on the HTTP response.
+You can customize the tags or modify the response headers by registering your own instance of the `TracingFilter` bean.
+
+In the following example, we register the `TracingFilter` bean, add the `ZIPKIN-TRACE-ID` response header containing the current Span's trace id, and add a tag with key `custom` and a value `tag` to the span.
+
+[source,java]
+----
+include::../../../..//spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/instrument/web/TraceFilterIntegrationTests.java[tags=response_headers,indent=0]
+----
+
+=== Custom service name
+
+By default, Sleuth assumes that, when you send a span to Zipkin, you want the span's service name to be equal to the value of the `spring.application.name` property.
+That is not always the case, though.
+There are situations in which you want to explicitly provide a different service name for all spans coming from your application.
+To achieve that, you can pass the following property to your application to override that value (the example is for a service named `myService`):
+
+[source,yaml]
+----
+spring.zipkin.service.name: myService
+----
+
+=== Customization of Reported Spans
+
+Before reporting spans (for example, to Zipkin) you may want to modify that span in some way.
+You can do so by using the `SpanAdjuster` interface.
+
+In Sleuth, we generate spans with a fixed name.
+Some users want to modify the name depending on values of tags.
+You can implement the `SpanAdjuster` interface to alter that name.
+
+The following example shows how to register two beans that implement `SpanAdjuster`:
+
+[source,java]
+----
+include::../../../..//spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/SpanAdjusterTests.java[tags=adjuster,indent=0]
+----
+
+The preceding example results in changing the name of the reported span to `foo bar`, just before it gets reported (for example, to Zipkin).
+
+=== Host Locator
+
+IMPORTANT: This section is about defining *host* from service discovery.
+It is *NOT* about finding Zipkin through service discovery.
+
+To define the host that corresponds to a particular span, we need to resolve the host name and port.
+The default approach is to take these values from server properties.
+If those are not set, we try to retrieve the host name from the network interfaces.
+
+If you have the discovery client enabled and prefer to retrieve the host address from the registered instance in a service registry, you have to set the `spring.zipkin.locator.discovery.enabled` property (it is applicable for both HTTP-based and Stream-based span reporting), as follows:
+
+[source,yaml]
+----
+spring.zipkin.locator.discovery.enabled: true
+----
+
+== Sending Spans to Zipkin
+
+By default, if you add `spring-cloud-starter-zipkin` as a dependency to your project, when the span is closed, it is sent to Zipkin over HTTP.
+The communication is asynchronous.
+You can configure the URL by setting the `spring.zipkin.baseUrl` property, as follows:
+
+[source,yaml]
+----
+spring.zipkin.baseUrl: http://192.168.99.100:9411/
+----
+
+If you want to find Zipkin through service discovery, you can pass the Zipkin's service ID inside the URL, as shown in the following example for `zipkinserver` service ID:
+
+[source,yaml]
+----
+spring.zipkin.baseUrl: http://zipkinserver/
+----
+
+To disable this feature just set `spring.zipkin.discoveryClientEnabled` to `false.
+
+When the Discovery Client feature is enabled, Sleuth uses
+`LoadBalancerClient` to find the URL of the Zipkin Server. It means
+that you can set up the load balancing configuration e.g. via Ribbon.
+
+[source,yaml]
+----
+zipkinserver:
+  ribbon:
+    ListOfServers: host1,host2
+----
+
+If you have web, rabbit, or kafka together on the classpath, you might need to pick the means by which you would like to send spans to zipkin.
+To do so, set `web`, `rabbit`, or `kafka` to the `spring.zipkin.sender.type` property.
+The following example shows setting the sender type for `web`:
+
+[source,yaml]
+----
+spring.zipkin.sender.type: web
+----
+
+IMPORTANT: If you have Kafka on the classpath, you need to set
+`spring.zipkin.kafka.enabled` to `true` apart from setting the sender type.
+
+To customize the `RestTemplate` that sends spans to Zipkin via HTTP, you can register
+the `ZipkinRestTemplateCustomizer` bean.
+
+[source,java]
+----
+@Configuration
+class MyConfig {
+	@Bean ZipkinRestTemplateCustomizer myCustomizer() {
+		return new ZipkinRestTemplateCustomizer() {
+			@Override
+			void customize(RestTemplate restTemplate) {
+				// customize the RestTemplate
+			}
+		};
+	}
+}
+----
+
+If, however, you would like to control the full process of creating the `RestTemplate`
+object, you will have to create a bean of `zipkin2.reporter.Sender` type.
+
+[source,java]
+----
+	@Bean Sender myRestTemplateSender(ZipkinProperties zipkin,
+			ZipkinRestTemplateCustomizer zipkinRestTemplateCustomizer) {
+		RestTemplate restTemplate = mySuperCustomRestTemplate();
+		zipkinRestTemplateCustomizer.customize(restTemplate);
+		return myCustomSender(zipkin, restTemplate);
+	}
+----
+
+== Zipkin Stream Span Consumer
+
+IMPORTANT: We recommend using Zipkin's native support for message-based span sending.
+Starting from the Edgware release, the Zipkin Stream server is deprecated.
+In the Finchley release, it got removed.
+
+See the http://cloud.spring.io/spring-cloud-static/Dalston.SR4/multi/multi__span_data_as_messages.html#_zipkin_consumer[Dalston Documentation]
+for how to create a Stream Zipkin server.
+
+== Integrations
+
+=== OpenTracing
+
+Spring Cloud Sleuth is compatible with http://opentracing.io/[OpenTracing].
+If you have OpenTracing on the classpath, we automatically register the OpenTracing `Tracer` bean.
+If you wish to disable this, set `spring.sleuth.opentracing.enabled` to `false`
+
+=== Runnable and Callable
+
+If you wrap your logic in `Runnable` or `Callable`, you can wrap those classes in their Sleuth representative, as shown in the following example for `Runnable`:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/documentation/SpringCloudSleuthDocTests.java[tags=trace_runnable,indent=0]
+----
+
+The following example shows how to do so for `Callable`:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/documentation/SpringCloudSleuthDocTests.java[tags=trace_callable,indent=0]
+----
+
+That way, you ensure that a new span is created and closed for each execution.
+
+=== Hystrix
+
+==== Custom Concurrency Strategy
+
+We register a custom https://github.com/Netflix/Hystrix/wiki/Plugins#concurrencystrategy[`HystrixConcurrencyStrategy`] called `TraceCallable` that wraps all `Callable` instances in their Sleuth representative.
+The strategy either starts or continues a span, depending on whether tracing was already going on before the Hystrix command was called.
+To disable the custom Hystrix Concurrency Strategy, set the `spring.sleuth.hystrix.strategy.enabled` to `false`.
+
+==== Manual Command setting
+
+Assume that you have the following `HystrixCommand`:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/instrument/hystrix/TraceCommandTests.java[tags=hystrix_command,indent=0]
+----
+
+To pass the tracing information, you have to wrap the same logic in the Sleuth version of the `HystrixCommand`, which is called
+`TraceCommand`, as shown in the following example:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/instrument/hystrix/TraceCommandTests.java[tags=trace_hystrix_command,indent=0]
+----
+
+=== RxJava
+
+We registering a custom https://github.com/ReactiveX/RxJava/wiki/Plugins#rxjavaschedulershook[`RxJavaSchedulersHook`] that wraps all `Action0` instances in their Sleuth representative, which is called `TraceAction`.
+The hook either starts or continues a span, depending on whether tracing was already going on before the Action was scheduled.
+To disable the custom `RxJavaSchedulersHook`, set the `spring.sleuth.rxjava.schedulers.hook.enabled` to `false`.
+
+You can define a list of regular expressions for thread names for which you do not want spans to be created.
+To do so, provide a comma-separated list of regular expressions in the `spring.sleuth.rxjava.schedulers.ignoredthreads` property.
+
+IMPORTANT: The suggest approach to reactive programming and Sleuth is to use
+the Reactor support.
+
+=== HTTP integration
+
+Features from this section can be disabled by setting the `spring.sleuth.web.enabled` property with value equal to `false`.
+
+==== HTTP Filter
+
+Through the `TracingFilter`, all sampled incoming requests result in creation of a Span.
+That Span's name is `http:` + the path to which the request was sent.
+For example, if the request was sent to `/this/this` then the name will be `http:/this/that`.
+You can configure which URIs you would like to skip by setting the `spring.sleuth.web.skipPattern` property.
+If you have `ManagementServerProperties` on classpath, its value of `contextPath` gets appended to the provided skip pattern.
+If you want to reuse the Sleuth's default skip patterns and just append your own, pass those patterns by using the `spring.sleuth.web.additionalSkipPattern`.
+
+==== HandlerInterceptor
+
+Since we want the span names to be precise, we use a `TraceHandlerInterceptor` that either wraps an existing `HandlerInterceptor` or is added directly to the list of existing `HandlerInterceptors`.
+The `TraceHandlerInterceptor` adds a special request attribute to the given `HttpServletRequest`.
+If the the `TracingFilter` does not see this attribute, it creates a "`fallback`" span, which is an additional span created on the server side so that the trace is presented properly in the UI.
+If that happens, there is probably missing instrumentation.
+In that case, please file an issue in Spring Cloud Sleuth.
+
+==== Async Servlet support
+
+If your controller returns a `Callable` or a `WebAsyncTask`, Spring Cloud Sleuth continues the existing span instead of creating a new one.
+
+==== WebFlux support
+
+Through `TraceWebFilter`, all sampled incoming requests result in creation of a Span.
+That Span's name is `http:` + the path to which the request was sent.
+For example, if the request was sent to `/this/that`, the name is `http:/this/that`.
+You can configure which URIs you would like to skip by using the `spring.sleuth.web.skipPattern` property.
+If you have `ManagementServerProperties` on the classpath, its value of `contextPath` gets appended to the provided skip pattern.
+If you want to reuse Sleuth's default skip patterns and append your own, pass those patterns by using the `spring.sleuth.web.additionalSkipPattern`.
+
+==== Dubbo RPC support
+
+Via the integration with Brave, Spring Cloud Sleuth supports http://dubbo.io/[Dubbo].
+It's enough to add the `brave-instrumentation-dubbo-rpc` dependency:
+
+[source,xml,indent=0]
+----
+<dependency>
+    <groupId>io.zipkin.brave</groupId>
+    <artifactId>brave-instrumentation-dubbo-rpc</artifactId>
+</dependency>
+----
+
+You need to also set a `dubbo.properties` file with the following contents:
+
+```properties
+dubbo.provider.filter=tracing
+dubbo.consumer.filter=tracing
+```
+
+You can read more about Brave - Dubbo integration https://github.com/openzipkin/brave/tree/master/instrumentation/dubbo-rpc[here].
+An example of Spring Cloud Sleuth and Dubbo can be found https://github.com/openzipkin/sleuth-webmvc-example/compare/add-dubbo-tracing[here].
+
+=== HTTP Client Integration
+
+==== Synchronous Rest Template
+
+We inject a `RestTemplate` interceptor to ensure that all the tracing information is passed to the requests.
+Each time a call is made, a new Span is created.
+It gets closed upon receiving the response.
+To block the synchronous `RestTemplate` features, set `spring.sleuth.web.client.enabled` to `false`.
+
+IMPORTANT: You have to register `RestTemplate` as a bean so that the interceptors get injected.
+If you create a `RestTemplate` instance with a `new` keyword, the instrumentation does NOT work.
+
+==== Asynchronous Rest Template
+
+IMPORTANT: Starting with Sleuth `2.0.0`, we no longer register a bean of `AsyncRestTemplate` type.
+It is up to you to create such a bean.
+Then we instrument it.
+
+To block the `AsyncRestTemplate` features, set `spring.sleuth.web.async.client.enabled` to `false`.
+To disable creation of the default `TraceAsyncClientHttpRequestFactoryWrapper`, set `spring.sleuth.web.async.client.factory.enabled`
+to `false`.
+If you do not want to create `AsyncRestClient` at all, set `spring.sleuth.web.async.client.template.enabled` to `false`.
+
+===== Multiple Asynchronous Rest Templates
+
+Sometimes you need to use multiple implementations of the Asynchronous Rest Template.
+In the following snippet, you can see an example of how to set up such a custom `AsyncRestTemplate`:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/instrument/web/client/MultipleAsyncRestTemplateTests.java[tags=custom_async_rest_template,indent=0]
+----
+
+==== `WebClient`
+
+We inject a `ExchangeFilterFunction` implementation that creates a span and, through on-success and on-error callbacks, takes care of closing client-side spans.
+
+To block this feature, set `spring.sleuth.web.client.enabled` to `false`.
+
+IMPORTANT: You have to register `WebClient` as a bean so that the tracing instrumentation gets applied.
+If you create a `WebClient` instance with a `new` keyword,  the instrumentation does NOT work.
+
+==== Traverson
+
+If you use the http://docs.spring.io/spring-hateoas/docs/current/reference/html/#client.traverson[Traverson] library, you can inject a `RestTemplate` as a bean into your Traverson object.
+Since `RestTemplate` is already intercepted, you get full support for tracing in your client. The following pseudo code
+shows how to do that:
+
+[source,java]
+----
+@Autowired RestTemplate restTemplate;
+
+Traverson traverson = new Traverson(URI.create("http://some/address"),
+    MediaType.APPLICATION_JSON, MediaType.APPLICATION_JSON_UTF8).setRestOperations(restTemplate);
+// use Traverson
+----
+
+==== Apache `HttpClientBuilder` and `HttpAsyncClientBuilder`
+
+We instrument the `HttpClientBuilder` and `HttpAsyncClientBuilder` so that
+tracing context gets injected to the sent requests.
+
+To block these features, set `spring.sleuth.web.client.enabled` to `false`.
+
+==== Netty `HttpClient`
+
+We instrument the Netty's `HttpClient`.
+
+To block this feature, set `spring.sleuth.web.client.enabled` to `false`.
+
+IMPORTANT: You have to register `HttpClient` as a bean so that the instrumentation happens.
+If you create a `HttpClient` instance with a `new` keyword, the instrumentation does NOT work.
+
+==== `UserInfoRestTemplateCustomizer`
+
+We instrument the Spring Security's `UserInfoRestTemplateCustomizer`.
+
+To block this feature, set `spring.sleuth.web.client.enabled` to `false`.
+
+=== Feign
+
+By default, Spring Cloud Sleuth provides integration with Feign through `TraceFeignClientAutoConfiguration`.
+You can disable it entirely by setting `spring.sleuth.feign.enabled` to `false`.
+If you do so, no Feign-related instrumentation take place.
+
+Part of Feign instrumentation is done through a `FeignBeanPostProcessor`.
+You can disable it by setting `spring.sleuth.feign.processor.enabled` to `false`.
+If you set it to `false`, Spring Cloud Sleuth does not instrument any of your custom Feign components.
+However, all the default instrumentation is still there.
+
+=== Asynchronous Communication
+
+==== `@Async` Annotated methods
+
+In Spring Cloud Sleuth, we instrument async-related components so that the tracing information is passed between threads.
+You can disable this behavior by setting the value of `spring.sleuth.async.enabled` to `false`.
+
+If you annotate your method with `@Async`, we automatically create a new Span with the following characteristics:
+
+* If the method is annotated with `@SpanName`, the value of the annotation is the Span's name.
+* If the method is not annotated with `@SpanName`, the Span name is the annotated method name.
+* The span is tagged with the method's class name and method name.
+
+==== `@Scheduled` Annotated Methods
+
+In Spring Cloud Sleuth, we instrument scheduled method execution so that the tracing information is passed between threads.
+You can disable this behavior by setting the value of `spring.sleuth.scheduled.enabled` to `false`.
+
+If you annotate your method with `@Scheduled`, we automatically create a new span with the following characteristics:
+
+* The span name is the annotated method name.
+* The span is tagged with the method's class name and method name.
+
+If you want to skip span creation for some `@Scheduled` annotated classes, you can set the `spring.sleuth.scheduled.skipPattern` with a regular expression that matches the fully qualified name of the `@Scheduled` annotated class.
+If you use `spring-cloud-sleuth-stream` and `spring-cloud-netflix-hystrix-stream` together, a span is created for each Hystrix metrics and sent to Zipkin.
+This behavior may be annoying. That's why, by default, `spring.sleuth.scheduled.skipPattern=org.springframework.cloud.netflix.hystrix.stream.HystrixStreamTask`.
+
+==== Executor, ExecutorService, and ScheduledExecutorService
+
+We provide `LazyTraceExecutor`, `TraceableExecutorService`, and `TraceableScheduledExecutorService`. Those implementations create spans each time a new task is submitted, invoked, or scheduled.
+
+The following example shows how to pass tracing information with `TraceableExecutorService` when working with `CompletableFuture`:
+
+[source,java]
+----
+
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/instrument/async/TraceableExecutorServiceTests.java[tags=completablefuture,indent=0]
+----
+
+IMPORTANT: Sleuth does not work with `parallelStream()` out of the box.
+If you want to have the tracing information propagated through the stream, you have to use the approach with `supplyAsync(...)`, as shown earlier.
+
+===== Customization of Executors
+
+Sometimes, you need to set up a custom instance of the `AsyncExecutor`.
+The following example shows how to set up such a custom `Executor`:
+
+[source,java]
+----
+include::../../../../spring-cloud-sleuth-core/src/test/java/org/springframework/cloud/sleuth/instrument/web/client/MultipleAsyncRestTemplateTests.java[tags=custom_executor,indent=0]
+----
+
+=== Messaging
+
+Features from this section can be disabled by setting the `spring.sleuth.messaging.enabled` property with value equal to `false`.
+
+==== Spring Integration and Spring Cloud Stream
+
+Spring Cloud Sleuth integrates with http://projects.spring.io/spring-integration/[Spring Integration].
+It creates spans for publish and subscribe events.
+To disable Spring Integration instrumentation, set `spring.sleuth.integration.enabled` to `false`.
+
+You can provide the `spring.sleuth.integration.patterns` pattern to explicitly provide the names of channels that you want to include for tracing.
+By default, all channels but `hystrixStreamOutput` channel are included.
+
+IMPORTANT: When using the `Executor` to build a Spring Integration `IntegrationFlow`, you must use the untraced version of the `Executor`.
+Decorating the Spring Integration Executor Channel with `TraceableExecutorService` causes the spans to be improperly closed.
+
+==== Spring RabbitMq
+
+We instrument the `RabbitTemplate` so that tracing headers get injected
+into the message.
+
+To block this feature, set `spring.sleuth.messaging.rabbit.enabled` to `false`.
+
+==== Spring Kafka
+
+We instrument the Spring Kafka's `ProducerFactory` and `ConsumerFactory`
+so that tracing headers get injected into the created Spring Kafka's
+`Producer` and `Consumer`.
+
+To block this feature, set `spring.sleuth.messaging.kafka.enabled` to `false`.
+
+=== Zuul
+
+We instrument the Zuul Ribbon integration by enriching the Ribbon requests with tracing information.
+To disable Zuul support, set the `spring.sleuth.zuul.enabled` property to `false`.
+
+== Running examples
+
+You can see the running examples deployed in the https://run.pivotal.io/[Pivotal Web Services].
+Check them out at the following links:
+
+* http://docssleuth-zipkin-server.cfapps.io/[Zipkin for apps presented in the samples to the top]
+* http://docsbrewing-zipkin-server.cfapps.io/[Zipkin for Brewery on PWS], its https://github.com/spring-cloud-samples/brewery[Github Code]

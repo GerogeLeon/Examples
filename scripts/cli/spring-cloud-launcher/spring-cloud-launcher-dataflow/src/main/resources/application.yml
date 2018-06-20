@@ -1,0 +1,25 @@
+server:
+  port: 9393
+
+# debug: true
+
+eureka:
+  instance:
+    status-page-url-path: /dashboard #allows you to click on the link in eureka dashboard
+
+info:
+  artifactId: "@project.artifactId@"
+  description: "@project.description@"
+  version: "@project.version@"
+
+security:
+  basic:
+    enabled: false
+
+management:
+  security:
+    enabled: false
+
+spring.cloud.dataflow.applicationProperties.stream.spring.cloud.deployer.JAVA_OPTS: -Xmx128m
+#  app.time.spring.cloud.deployer.JAVA_OPTS: -Xmx128m
+#  app.log.spring.cloud.deployer.JAVA_OPTS: -Xmx128m

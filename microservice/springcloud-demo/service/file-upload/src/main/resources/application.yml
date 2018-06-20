@@ -1,0 +1,26 @@
+
+#随机端口
+server:
+  port: 8040
+
+#服务注册中心
+eureka:
+  client:
+    service-url:
+      default-zone: http://localhost:8761/eureka
+  instance:
+    instanceId: ${spring.application.name}:${spring.cloud.client.ipAddress}:${server.port}
+    prefer-ip-address: true
+
+#数据源
+spring:
+  zipkin:
+    base-url: http://127.0.0.1:9411
+  application:
+    name: file-upload
+  http:
+    multipart:
+      max-file-size: 2000Mb  # Max file size 默认1m
+      max-request-size: 2500Mb  #Max request size ,默认10m
+
+

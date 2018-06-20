@@ -1,0 +1,257 @@
+<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>1.5.9.RELEASE</version>
+    </parent>
+
+    <groupId>com.marcosbarbero.cloud</groupId>
+    <artifactId>spring-cloud-zuul-ratelimit-parent</artifactId>
+    <name>Rate limit configuration for Spring Cloud Netflix Zuul</name>
+    <packaging>pom</packaging>
+    <description>
+        <![CDATA[
+            This project is a Spring Cloud Netflix Zuul Rate Limit strategy.
+        ]]>
+    </description>
+    <url>https://github.com/marcosbarbero/spring-cloud-zuul-ratelimit</url>
+    <version>1.7.2.RELEASE</version>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <properties>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <java.version>1.8</java.version>
+        <nexus-staging-maven-plugin.version>1.6.3</nexus-staging-maven-plugin.version>
+        <global.version>1.7.2.RELEASE</global.version>
+        <jacoco.version>0.8.0</jacoco.version>
+        <jacoco.it.execution.data.file>
+            ${project.build.directory}/coverage-reports/jacoco.exec
+        </jacoco.it.execution.data.file>
+        <jacoco.ut.execution.data.file>
+            ${project.build.directory}/coverage-reports/jacoco.exec
+        </jacoco.ut.execution.data.file>
+        <package.root.path>com/marcosbarbero/cloud/autoconfigure/zuul/ratelimit</package.root.path>
+    </properties>
+
+    <developers>
+        <developer>
+            <id>marcosbarbero</id>
+            <email>marcos.hgb@gmail.com</email>
+            <name>Marcos Barbero</name>
+            <timezone>Europe/Amsterdam</timezone>
+            <roles>
+                <role>Project Lead</role>
+            </roles>
+        </developer>
+
+        <developer>
+            <id>lchayoun</id>
+            <email>lchayoun@gmail.com</email>
+            <name>Liel Chayoun</name>
+            <timezone>CET</timezone>
+            <roles>
+                <role>Project Lead</role>
+            </roles>
+        </developer>
+
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/marcosbarbero/spring-cloud-zuul-ratelimit.git</connection>
+        <developerConnection>
+            scm:git:git@github.com:marcosbarbero/spring-cloud-starter-ratelimit.git
+        </developerConnection>
+        <url>https://github.com/marcosbarbero/spring-cloud-zuul-ratelimit</url>
+        <tag>HEAD</tag>
+    </scm>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>Edgware.SR3</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>com.marcosbarbero.cloud</groupId>
+                <artifactId>spring-cloud-zuul-ratelimit-dependencies</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <modules>
+        <module>spring-cloud-zuul-ratelimit-core</module>
+        <module>spring-cloud-zuul-ratelimit-tests/consul</module>
+        <module>spring-cloud-zuul-ratelimit-tests/springdata</module>
+        <module>spring-cloud-zuul-ratelimit-tests/inmemory</module>
+        <module>spring-cloud-zuul-ratelimit-tests/redis</module>
+        <module>spring-cloud-zuul-ratelimit-tests/bucket4j-jcache</module>
+        <module>spring-cloud-zuul-ratelimit-tests/bucket4j-hazelcast</module>
+        <module>spring-cloud-zuul-ratelimit-tests/bucket4j-ignite</module>
+        <module>spring-cloud-zuul-ratelimit-tests/bucket4j-infinispan</module>
+        <module>spring-cloud-zuul-ratelimit-coverage</module>
+        <module>spring-cloud-zuul-ratelimit-dependencies</module>
+        <module>spring-cloud-starter-zuul-ratelimit</module>
+    </modules>
+
+    <dependencies>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>2.9.0</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.eluder.coveralls</groupId>
+                <artifactId>coveralls-maven-plugin</artifactId>
+                <version>4.3.0</version>
+                <configuration>
+                    <jacocoReports>
+                        <jacocoReport>
+                            spring-cloud-zuul-ratelimit-core/target/site/jacoco/jacoco.xml
+                        </jacocoReport>
+                    </jacocoReports>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <configuration>
+                    <destFile>${basedir}/target/coverage-reports/jacoco-unit.exec</destFile>
+                    <dataFile>${basedir}/target/coverage-reports/jacoco-unit.exec</dataFile>
+                    <excludes>
+                        <exclude>**/test/**</exclude>
+                        <exclude>**/tests/**</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>jacoco-initialize</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>jacoco-site</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+        </snapshotRepository>
+        <repository>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository>
+    </distributionManagement>
+
+    <profiles>
+        <profile>
+            <id>deploy-parent</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.sonatype.plugins</groupId>
+                        <artifactId>nexus-staging-maven-plugin</artifactId>
+                        <version>${nexus-staging-maven-plugin.version}</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <serverId>ossrh</serverId>
+                            <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+                            <autoReleaseAfterClose>true</autoReleaseAfterClose>
+                        </configuration>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <additionalparam>-Xdoclint:none</additionalparam>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+</project>

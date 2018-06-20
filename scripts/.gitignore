@@ -1,0 +1,17 @@
+/application.yml
+/application.properties
+*~
+.#*
+*#
+target
+bin
+/data
+/data_rabbit
+.classpath
+.project
+.settings
+.springBeans
+.DS_Store
+*.sw*
+*.iml
+.idea

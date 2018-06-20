@@ -1,0 +1,72 @@
+info:
+  id: ${name:application}
+spring:
+  application:
+    name: ${info.id}
+
+logging:
+  level:
+    com.netflix.discovery: 'OFF'
+    com.netflix.zuul: 'OFF'
+#    org.springframework.security: DEBUG
+#    org.springframework.web: DEBUG
+zuul:
+  routes:
+    configserver: /config/**
+foo:
+  ribbon:
+    listOfServers: http://example.com
+Eureka:
+  instance:
+    leaseRenewalIntervalInSeconds: 10
+    dataCenterInfo:
+      availability-zone: us-east-1
+---
+spring:
+  profiles: local
+  oauth2:
+    client:
+      accessTokenUri: http://localhost:8080/uaa/oauth/token
+      userAuthorizationUri: http://localhost:8080/uaa/oauth/authorize
+      clientId: acme
+      clientSecret: acmesecret
+    resource:
+      tokenInfoUri: http://localhost:8080/uaa/oauth/check_token
+#      id: openid
+      serviceId: ${PREFIX:}resource
+
+endpoints:
+  health:
+    sensitive: false
+  restart:
+    enabled: true
+  shutdown:
+    enabled: true
+
+---
+spring:
+  profiles: github
+  oauth2:
+    client:
+      clientId: bd1c0a783ccdd1c9b9e4
+      clientSecret: 1a9030fbca47a5b2c28e92f19050bb77824b5ad1
+      accessTokenUri: https://github.com/login/oauth/access_token
+      userAuthorizationUri: https://github.com/login/oauth/authorize
+      clientAuthenticationScheme: form
+    resource:
+      userInfoUri: https://api.github.com/user
+      preferTokenInfo: false
+
+---
+spring:
+  profiles: test
+  oauth2:
+    client:
+      tokenUri: https://login.run.pivotal.io/oauth/token
+      authorizationUri: https://login.run.pivotal.io/oauth/authorize
+      clientId: acme
+      clientSecret: ${CLIENT_SECRET}
+    resource:
+      tokenInfoUri: http://uaa.run.pivotal.io/check_token
+      id: openid
+      serviceId: ${PREFIX:}resource

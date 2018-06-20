@@ -1,0 +1,17 @@
+*~
+#*
+*#
+.#*
+.classpath
+.project
+.settings/
+.factorypath
+.springBeans
+target/
+_site/
+.idea
+*.iml
+*.swp
+*.log
+.checkstyle
+.DS_Store

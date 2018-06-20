@@ -1,0 +1,3 @@
+@EnableDiscoveryClient
+public class Application {
+}

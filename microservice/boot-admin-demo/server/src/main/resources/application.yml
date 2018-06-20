@@ -1,0 +1,10 @@
+spring:
+  boot:
+    admin:
+      url: http://localhost:8083
+info:
+  name: server
+  description: @project.description@
+  version: @project.version@
+server:
+  port: 8083

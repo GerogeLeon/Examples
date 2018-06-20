@@ -1,0 +1,11 @@
+stubrunner:
+  cloud.stubbed.discovery.enabled: true
+spring.cloud:
+  zookeeper:
+    enabled: false
+    discovery.enabled: false
+  consul:
+    enabled: false
+    discovery.enabled: false
+  service-registry.enabled: false
+eureka.client.enabled: false

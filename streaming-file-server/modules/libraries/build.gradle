@@ -1,0 +1,11 @@
+subprojects {
+  apply from: "$project.rootDir/gradle/subprojects.gradle"
+
+  bootJar {
+    enabled = false
+  }
+
+  jar {
+    enabled = true
+  }
+}

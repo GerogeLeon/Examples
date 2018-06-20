@@ -1,0 +1,10 @@
+twitter:
+  oauth:
+    consumerKey:
+    consumerSecret:
+    accessToken:
+    accessTokenSecret:
+
+gmail:
+  user:
+  password:

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:int-ftp="http://www.springframework.org/schema/integration/ftp"
+	xsi:schemaLocation="http://www.springframework.org/schema/integration/ftp http://www.springframework.org/schema/integration/ftp/spring-integration-ftp.xsd
+		http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+	<context:property-placeholder location="classpath:user.properties"/>
+
+	<bean id="ftpClientFactory" class="org.springframework.integration.ftp.session.DefaultFtpSessionFactory">
+		<property name="host" value="${host}"/>
+		<property name="port" value="${availableServerPort}"/>
+		<property name="username" value="${userid}"/>
+		<property name="password" value="${password}"/>
+	</bean>
+
+	<bean id="cachingSessionFactory" class="org.springframework.integration.file.remote.session.CachingSessionFactory">
+		<constructor-arg ref="ftpClientFactory"/>
+	</bean>
+
+	<int:channel id="ftpChannel"/>
+
+	<int-ftp:outbound-channel-adapter  id="ftpOutbound"
+				channel="ftpChannel"
+				remote-directory="/"
+				session-factory="cachingSessionFactory">
+		<int-ftp:request-handler-advice-chain>
+			<int:retry-advice />
+		</int-ftp:request-handler-advice-chain>
+	</int-ftp:outbound-channel-adapter>
+
+</beans>

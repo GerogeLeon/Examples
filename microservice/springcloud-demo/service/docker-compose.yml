@@ -1,0 +1,80 @@
+version: "2"
+services:
+
+
+
+  # 启动 hello
+  hello:
+    image: 127.0.0.1:5000/billjiang/hello
+    ports:
+      - "8000"
+    environment:
+      - EUREKA_SERVER_LIST=http://discovery1:8761/eureka/,http://discovery2:8762/eureka/
+      - SPRING_PROFILES_ACTIVE=docker
+      - MYSQL_DATABASE=foodb
+      - MYSQL_USERNAME=user1
+      - MYSQL_PASSWORD=passw0rd
+    external_links:
+      - mysql
+      - config1
+      - config2
+      - gateway
+      - track
+
+  # 启动 world
+  world:
+    image: 127.0.0.1:5000/billjiang/world
+    ports:
+      - "8010"
+    environment:
+      - EUREKA_SERVER_LIST=http://discovery1:8761/eureka/,http://discovery2:8762/eureka/
+      - SPRING_PROFILES_ACTIVE=docker
+      - SERVER_PORT:8010
+    external_links:
+      - config1
+      - config2
+      - gateway
+      - track
+
+  # 启动 helloworld
+  helloworld:
+    image: 127.0.0.1:5000/billjiang/helloworld
+    ports:
+      - "8020"
+    environment:
+      - EUREKA_SERVER_LIST=http://discovery1:8761/eureka/,http://discovery2:8762/eureka/
+      - SPRING_PROFILES_ACTIVE=docker
+      - SERVER_PORT:8020
+    external_links:
+      - config1
+      - config2
+      - gateway
+      - track
+    links:
+      - hello
+      - world
+  # 启动 hello
+  helloworld-feign:
+    image: 127.0.0.1:5000/billjiang/helloworld-feign
+    ports:
+      - "8030"
+    environment:
+      - EUREKA_SERVER_LIST=http://discovery1:8761/eureka/,http://discovery2:8762/eureka/
+      - SPRING_PROFILES_ACTIVE=docker
+      - SERVER_PORT=8030
+    external_links:
+      - config1
+      - config2
+      - gateway
+      - track
+    links:
+      - hello
+      - world
+
+# 其他服务 ..........................
+networks:
+  default:
+    external:
+      name: springclouddemo_default
+
+

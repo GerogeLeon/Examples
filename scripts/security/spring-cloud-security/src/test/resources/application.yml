@@ -1,0 +1,13 @@
+proxy:
+  auth:
+    routes:
+      foo: oauth2
+      bar: none
+security:
+  oauth2:
+    client:
+      clientId: acme
+      clientSecret: acmesecret
+logging:
+  level:
+    org.springframework.security: DEBUG

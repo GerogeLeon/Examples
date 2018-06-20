@@ -1,0 +1,17 @@
+.idea
+*.iml
+build
+bin/
+.gradle
+.project
+.settings
+.classpath
+commitHash.txt
+logs
+.log
+.zip
+/out
+*~
+*.log
+.DS_STORE
+out

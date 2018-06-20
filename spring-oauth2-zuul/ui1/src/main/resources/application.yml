@@ -1,0 +1,9 @@
+debug: true
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+
+server:
+  port: 8081

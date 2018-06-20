@@ -1,0 +1,23 @@
+server:
+  port: 8087
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    instance-id: ${spring.application.name}:${spring.cloud.client.ipAddress}:${server.port}
+spring:
+  application:
+    name: hystrix-dashboard
+
+---
+spring:
+  profiles: docker
+server:
+  port: ${{SERVER_PORT}:8087}
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_SERVER_LIST}
+

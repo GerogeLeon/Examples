@@ -1,0 +1,16 @@
+stubrunner.repositoryRoot: classpath:m2repo/repository/
+stubrunner.ids: org.springframework.cloud.contract.verifier.stubs:streamService:0.0.1-SNAPSHOT:stubs
+
+spring:
+  cloud:
+    stream:
+      bindings:
+        output:
+          destination: returnBook
+        input:
+          destination: bookStorage
+
+server:
+  port: 0
+
+debug: true

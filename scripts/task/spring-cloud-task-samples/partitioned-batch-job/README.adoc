@@ -1,0 +1,33 @@
+= Partitioned Job
+
+An example of the usage of the `DeployerPartitionHandler` and
+`DeployerStepExecutionHandler` to partition a Spring Batch job.
+
+== Requirements:
+
+* Java 7 or Above
+
+== Build:
+
+[source,shell,indent=2]
+----
+$ ./mvnw clean install
+----
+
+== Execute:
+
+[source,shell,indent=2]
+----
+$ export SPRING_APPLICATION_JSON='{"spring":{"datasource":{"url":"jdbc:mysql://localhost:3306/<your database>","username":"<your username>","password":"<your password>","driverClassName":"org.mariadb.jdbc.Driver"}}}'
+$ java -jar target/partitioned-batch-job-1.2.1.RELEASE.jar
+----
+
+NOTE: This example will use require a MySql RDBMS repository and currently uses the mariadb jdbc driver to connect.
+You can changes this another driver based on your needs.
+
+NOTE: Since this example uses the Spring Cloud Deployer Local to launch the partitions, you will need to establish the datasource settings using the SPRING_APPLICATION_JSON environment property as shown above.
+
+== Dependencies:
+
+A datasource (not in memory) must be configured based on normal Spring Boot conventions
+(application.properties/application.yml/environment variables/etc).

@@ -1,0 +1,202 @@
+:spring_version: current
+:spring_boot_version: 2.0.1.RELEASE
+:toc:
+:icons: font
+:source-highlighter: prettify
+:project_id: gs-circuit-breaker
+This guide walks you through the process of applying circuit breakers to potentially-failing method calls using the Netflix Hystrix fault tolerance library.
+
+== What you'll build
+
+You'll build a microservice application that uses the http://martinfowler.com/bliki/CircuitBreaker.html[Circuit Breaker pattern] to gracefully degrade functionality when a method call fails. Use of the Circuit Breaker pattern can allow a microservice to continue operating when a related service fails, preventing the failure from cascading and giving the failing service time to recover.
+
+
+== What you'll need
+
+:java_version: 1.8
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/master/prereq_editor_jdk_buildtools.adoc[]
+
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/master/how_to_complete_this_guide.adoc[]
+
+[[reveal-gradle]]
+[.reveal-gradle]
+== Build with Gradle
+
+[[scratch]]
+[.use-gradle]
+== Build with Gradle
+
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/master/build_system_intro.adoc[]
+
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/master/create_directory_structure_hello.adoc[]
+
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/master/create_both_builds.adoc[]
+
+`bookstore/build.gradle`
+// AsciiDoc source formatting doesn't support groovy, so using java instead
+[source,java]
+----
+include::https://raw.githubusercontent.com/spring-guides/{project_id}/master/initial/bookstore/build.gradle[]
+----
+
+`reading/build.gradle`
+// AsciiDoc source formatting doesn't support groovy, so using java instead
+[source,java]
+----
+include::https://raw.githubusercontent.com/spring-guides/{project_id}/master/initial/reading/build.gradle[]
+----
+
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/master/spring-boot-gradle-plugin.adoc[]
+
+[[reveal-maven]]
+[.reveal-maven]
+== Build with Maven
+
+[[use-maven]]
+[.use-maven]
+== Build with Maven
+
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/master/build_system_intro_maven.adoc[]
+
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/master/create_directory_structure_hello.adoc[]
+
+`bookstore/pom.xml`
+[source,xml]
+----
+include::https://raw.githubusercontent.com/spring-guides/{project_id}/master/initial/bookstore/pom.xml[]
+----
+
+`reading/pom.xml`
+[source,xml]
+----
+include::https://raw.githubusercontent.com/spring-guides/{project_id}/master/initial/reading/pom.xml[]
+----
+
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/master/spring-boot-maven-plugin.adoc[]
+
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/master/hide-show-sts.adoc[]
+
+
+
+[[initial]]
+== Set up a server microservice application
+
+The Bookstore service will have a single endpoint. It will be accessible at `/recommended`, and will (for simplicity) return a `String` recommended reading list.
+
+Edit our main class, in `BookstoreApplication.java`. It should look like this:
+
+`bookstore/src/main/java/hello/BookstoreApplication.java`
+[source,java]
+----
+include::complete/bookstore/src/main/java/hello/BookstoreApplication.java[]
+----
+
+The `@RestController` annotation marks `BookstoreApplication` as a controller class, like `@Controller` does, and also ensures that `@RequestMapping` methods in this class will behave as though annotated with `@ResponseBody`. That is, the return values of `@RequestMapping` methods in this class will be automatically converted appropriately from their original types and will be written directly to the response body.
+
+We're going to run this application locally alongside a client service application, so in `src/main/resources/application.properties`, set `server.port` so that the Bookstore service won't conflict with the client when we get that running.
+
+`bookstore/src/main/resources/application.properties`
+[source,properties]
+----
+include::complete/bookstore/src/main/resources/application.properties[]
+----
+
+== Set up a client microservice application
+
+The Reading application will be our front-end (as it were) to the Bookstore application. We'll be able to view our reading list there at `/to-read`, and that reading list will be retrieved from the Bookstore service application.
+
+`reading/src/main/java/hello/ReadingApplication.java`
+[source,java]
+----
+package hello;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.client.RestTemplate;
+import java.net.URI;
+
+@RestController
+@SpringBootApplication
+public class ReadingApplication {
+
+  @RequestMapping("/to-read")
+  public String readingList() {
+    RestTemplate restTemplate = new RestTemplate();
+    URI uri = URI.create("http://localhost:8090/recommended");
+
+    return restTemplate.getForObject(uri, String.class);
+  }
+
+  public static void main(String[] args) {
+    SpringApplication.run(ReadingApplication.class, args);
+  }
+}
+----
+
+To get the list from Bookstore, we're using Spring's `RestTemplate` template class. `RestTemplate` makes an HTTP GET request to the Bookstore service's URL as we provide it and then returns the result as a `String`. (For more information on using Spring to consume a RESTful service, see the https://spring.io/guides/gs/consuming-rest/[Consuming a RESTful Web Service] guide.)
+
+Add the `server.port` property to `src/main/resources/application.properties`:
+
+`reading/src/main/resources/application.properties`
+[source,properties]
+----
+include::complete/reading/src/main/resources/application.properties[]
+----
+
+We now can access, in a browser, the `/to-read` endpoint on our Reading application, and see our reading list. Yet since we rely on the Bookstore application, if anything happens to it, or if Reading is simply unable to access Bookstore, we'll have no list and our users will get a nasty HTTP 500 error message.
+
+== Apply the Circuit Breaker pattern
+
+Netflix's Hystrix library provides an implementation of the Circuit Breaker pattern: when we apply a circuit breaker to a method, Hystrix watches for failing calls to that method, and if failures build up to a threshold, Hystrix opens the circuit so that subsequent calls automatically fail. While the circuit is open, Hystrix redirects calls to the method, and they're passed on to our specified fallback method.
+
+Spring Cloud Netflix Hystrix looks for any method annotated with the `@HystrixCommand` annotation, and wraps that method in a proxy connected to a circuit breaker so that Hystrix can monitor it. This currently only works in a class marked with `@Component` or `@Service`, so in the Reading application, under `src/main/java/hello`, add a new class: `BookService`.
+
+The `RestTemplate` will be injected into the constructor of the `BookService` when it is created. The complete class should look like this:
+
+`reading/src/main/java/hello/BookService.java`
+[source,java]
+----
+include::complete/reading/src/main/java/hello/BookService.java[]
+----
+
+We've applied `@HystrixCommand` to our original `readingList()` method. We also have a new method here: `reliable()`. The `@HystrixCommand` annotation has `reliable` as its `fallbackMethod`, so if, for some reason, Hystrix opens the circuit on `readingList()`, we'll have an excellent (if short) placeholder reading list ready for our users.
+
+In our main class, `ReadingApplication`, we will create a `RestTemplate` bean, inject the `BookService` and call it for our reading list:
+
+`reading/src/main/java/hello/ReadingApplication.java`
+[source,java]
+----
+include::complete/reading/src/main/java/hello/ReadingApplication.java[]
+----
+
+Now, to retrieve the list from the Bookstore service, we call `bookService.readingList()`. You'll also notice that we've added one last annotation, `@EnableCircuitBreaker`; that's necessary to tell Spring Cloud that the Reading application uses circuit breakers and to enable their monitoring, opening, and closing (behavior supplied, in our case, by Hystrix).
+
+== Try it out
+
+Run both the Bookstore service and the Reading service, and then open a browser to the Reading service, at `localhost:8080/to-read`. You should see the complete recommended reading list:
+
+----
+Spring in Action (Manning), Cloud Native Java (O'Reilly), Learning Spring Boot (Packt)
+----
+
+Now shut down the Bookstore application. Our list source is gone, but thanks to Hystrix and Spring Cloud Netflix, we have a reliable abbreviated list to stand in the gap; you should see:
+
+----
+Cloud Native Java (O'Reilly)
+----
+
+== Summary
+
+Congratulations! You've just developed a Spring application that uses the Circuit Breaker pattern to protect against cascading failures and to provide fallback behavior for potentially failing calls.
+
+== See Also
+
+The following guides may also be helpful:
+
+* https://spring.io/guides/gs/rest-service/[Building a RESTful Web Service]
+* https://spring.io/guides/gs/serving-web-content/[Serving Web Content with Spring MVC]
+* https://spring.io/guides/gs/spring-boot/[Building an Application with Spring Boot]
+
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/master/footer.adoc[]

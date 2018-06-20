@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	   xmlns:context="http://www.springframework.org/schema/context"
+	   xsi:schemaLocation="http://www.springframework.org/schema/beans
+	   http://www.springframework.org/schema/beans/spring-beans.xsd
+	   http://www.springframework.org/schema/context
+	   http://www.springframework.org/schema/context/spring-context.xsd">
+
+	<context:property-placeholder location="classpath:user.properties"/>
+
+	<bean id="sftpSessionFactory" class="org.springframework.integration.file.remote.session.CachingSessionFactory">
+		<constructor-arg ref="defaultSftpSessionFactory" />
+	</bean>
+
+	<bean id="defaultSftpSessionFactory"
+		  class="org.springframework.integration.sftp.session.DefaultSftpSessionFactory">
+		<property name="host" value="${sftp.host}"/>
+		<property name="privateKey" value="${sftp.private.keyfile}"/>
+		<property name="privateKeyPassphrase" value="${sftp.passphrase}"/>
+		<property name="port" value="${sftp.port}"/>
+		<property name="user" value="${sftp.username}"/>
+		<property name="allowUnknownKeys" value="true"/>
+	</bean>
+
+	<bean class="org.springframework.integration.samples.sftp.EmbeddedSftpServer">
+		<property name="port" value="${sftp.port}"/>
+		<property name="defaultSftpSessionFactory" ref="defaultSftpSessionFactory"/>
+	</bean>
+
+</beans>

@@ -1,0 +1,6 @@
+---
+applications:
+- name: bookstore-service-broker
+  memory: 1G
+  path: ../../build/libs/bookstore-service-broker-0.0.1.BUILD-SNAPSHOT.jar
+

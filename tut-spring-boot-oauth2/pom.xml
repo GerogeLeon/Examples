@@ -1,0 +1,26 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>org.springframework.guides</groupId>
+	<artifactId>tut-spring-boot-oauth</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<packaging>pom</packaging>
+	<name>Spring Security OAuth2 Samples</name>
+
+	<modules>
+		<module>simple</module>
+		<module>click</module>
+		<module>logout</module>
+		<module>manual</module>
+		<module>github</module>
+		<module>auth-server</module>
+		<module>custom-error</module>
+	</modules>
+	
+    <build>
+      <plugins>
+      </plugins>
+    </build>
+
+</project>

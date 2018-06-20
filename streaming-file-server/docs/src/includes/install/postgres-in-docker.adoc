@@ -1,0 +1,19 @@
+
+//tag::content[]
+[source,bash]
+[subs="+attributes"]
+.install using postgres in docker
+----
+# docker compose file for postgres database
+docker-compose up -d
+
+# file-items data service
+java -jar file-items-service-{project-version}.jar --spring.profiles.active=db-pg
+
+# file server
+java -jar file-server-{project-version}.jar --app.upload.path=./path/to/file-storage
+
+# cleanup
+docker-compose down -v
+----
+//end::content[]

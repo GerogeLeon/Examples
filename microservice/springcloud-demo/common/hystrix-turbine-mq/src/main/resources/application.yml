@@ -1,0 +1,39 @@
+server:
+  port: 8099
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    instance-id: ${spring.application.name}:${spring.cloud.client.ipAddress}:${server.port}
+    prefer-ip-address: true
+spring:
+  application:
+    name: hystrix-turbine-mq
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+info:
+  description: 监控数据聚合
+#turbine:
+  #app-config: helloworld,helloworldfeign,hello,world
+  #cluster-name-expression: "'default'"
+
+---
+spring:
+  profiles: docker
+  rabbitmq:
+    port: 5672
+    username: guest
+    password: guest
+    host: rabbitmq
+server:
+  port: ${{SERVER_PORT}:8089}
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_SERVER_LIST}

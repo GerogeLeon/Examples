@@ -1,0 +1,109 @@
+service:
+- docker
+
+env:
+  global:
+  - TERM=dumb
+
+language: java
+jdk: oraclejdk8
+
+apt:
+  update: true
+  packages:
+  - bash
+  - curl
+  - jq
+  - libxml2-utils
+  - unzip
+  - docker-ce
+  - python-pip
+
+install: true
+before_install:
+- sudo pip install docker-compose httpie >/dev/null 2>&1
+- source <(curl -s https://raw.githubusercontent.com/daggerok/bash-functions/master/main.bash)
+- stop_any 5432 5672 27017 8082 8082 8081 8081 8080 8080 80 80
+
+script:
+
+# jgiven tests and docs
+#- bash gradlew -S -Pdebug clean test jgiven build documentation >/dev/null || true
+- bash gradlew -S -Pdebug clean check build documentation >/dev/null || true
+
+- export APP_UPLOAD_PATH="/tmp/file-storage"
+- mkdir -p ${APP_UPLOAD_PATH}
+- cp -Rf ./modules/apps/file-server/build/libs "${APP_UPLOAD_PATH}/"
+
+# postgres
+- bash gradlew clean assemble postgresUp >/dev/null
+- bash ./modules/apps/file-items-service/build/libs/*.jar --spring.profiles.active=db-pg >/dev/null &
+- wait_for 8001
+- bash ./modules/apps/file-server/build/libs/*.jar >/dev/null &
+- wait_for 8002
+- http --auth user:password :8001/actuator/health
+- http --auth user:password -f post :8002/upload filename="$(date)-build.gradle" file@build.gradle
+- http --auth user:password -f post :8002/upload filename="$(date)-settings.gradle" file@settings.gradle
+- http --auth user:password :8002/api/v1/files
+- http --auth user:password :8002/
+- stop_any 8002 8002 8001 8001 80 80
+- bash gradlew postgresDown >/dev/null
+
+# h2
+- bash gradlew clean assemble >/dev/null
+#- bash ./modules/apps/file-items-service/build/libs/*jar --spring.profiles.active=db-h2 >/dev/null &
+- bash ./modules/apps/file-items-service/build/libs/*jar >/dev/null &
+- wait_for 8001
+- bash ./modules/apps/file-server/build/libs/*jar --app.upload.path=${APP_UPLOAD_PATH} >/dev/null &
+- wait_for 8002
+- http --auth user:password :8001/actuator/health
+- http --auth user:password -f post :8002/upload filename="$(date)-build.gradle" file@build.gradle
+- http --auth user:password -f post :8002/upload filename="$(date)-settings.gradle" file@settings.gradle
+- http --auth user:password :8002/api/v1/files
+- http --auth user:password :8002/
+- stop_any 8002 8002 8001 8001 80 80
+
+# install as linux service
+- bash gradlew clean assemble postgresUp >/dev/null 2>&1
+- cp -Rf ./modules/apps/file-server/build/libs "${APP_UPLOAD_PATH}/"
+- mv -f ./modules/apps/file-items-service/build/libs/*.jar /tmp/file-items-service.jar
+- #export SPRING_PROFILES_ACTIVE=db-pg
+- echo 'JAVA_OPTS="-Dspring.profiles.active=pg-db"' > /tmp/file-items-service.conf
+- mv -f ./modules/apps/file-server/build/libs/*.jar        /tmp/file-server.jar
+- sudo ln -s /tmp/file-items-service.jar                          /etc/init.d/file-items-service
+- sudo ln -s /tmp/file-server.jar                                 /etc/init.d/file-server
+- sudo service file-items-service                                 start
+- wait_for 8001
+- sudo service file-server                                        start
+- wait_for 8002
+- http --auth user:password :8001/actuator/health
+- http --auth user:password :8002/actuator/health
+- http --auth user:password -f post :8002/upload filename="$(date)-README.md" file@README.md
+- http --auth user:password :8002/api/v1/files
+- http --auth user:password :8002/
+- sudo service file-server                                        stop
+- sudo service file-items-service                                 stop
+- bash gradlew postgresDown >/dev/null 2>&1
+- unset SPRING_PROFILES_ACTIVE
+
+# scripts/application.bash
+- bash ./scripts/application.bash start build
+- bash ./scripts/application.bash stop build
+- bash ./scripts/application.bash start build
+- http --auth user:password -f post :8002/upload filename="$(date)-build.gradle" file@build.gradle
+- http --auth user:password -f post :8002/upload filename="$(date)-settings.gradle" file@settings.gradle
+- http --auth user:password -f post :8002/upload filename="$(date)-README.md" file@README.md
+- http --auth user:password :8001/api/v1/file-items
+- http --auth user:password :8002/api/v1/files
+- yes | bash ./scripts/application.bash clean build
+
+# scripts/application-h2.bash
+- bash ./scripts/application-h2.bash start build
+- bash ./scripts/application-h2.bash stop build
+- bash ./scripts/application-h2.bash start build
+- http --auth user:password :8001/actuator/health
+- http --auth user:password -f post :8002/upload filename="$(date)-build.gradle" file@build.gradle
+- http --auth user:password -f post :8002/upload filename="$(date)-settings.gradle" file@settings.gradle
+- http --auth user:password :8002/api/v1/files
+- http --auth user:password :8002/
+- yes | bash ./scripts/application-h2.bash clean build

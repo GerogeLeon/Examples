@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:int-ftp="http://www.springframework.org/schema/integration/ftp"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+		http://www.springframework.org/schema/integration/ftp http://www.springframework.org/schema/integration/ftp/spring-integration-ftp.xsd">
+
+	<context:property-placeholder location="classpath:user.properties"/>
+
+	<bean id="ftpClientFactory" class="org.springframework.integration.ftp.session.DefaultFtpSessionFactory">
+		<property name="host" value="${host}"/>
+		<property name="port" value="${availableServerPort}"/>
+		<property name="username" value="${userid}"/>
+		<property name="password" value="${password}"/>
+	</bean>
+
+	<int-ftp:inbound-channel-adapter id="ftpInbound"
+				channel="ftpChannel"
+				session-factory="ftpClientFactory"
+				filename-pattern="*.txt"
+				auto-create-local-directory="true"
+				delete-remote-files="false"
+				remote-directory="/"
+				local-directory="#{ T(org.springframework.integration.samples.ftp.TestSuite).LOCAL_FTP_TEMP_DIR}/ftpInbound">
+			<int:poller fixed-rate="1000"/>
+	</int-ftp:inbound-channel-adapter>
+
+	<int:channel id="ftpChannel">
+		<int:queue/>
+	</int:channel>
+</beans>

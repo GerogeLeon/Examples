@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: zuul
+
+logging:
+  level.com.netflix.zuul: DEBUG
+  level.org.springframework.cloud: DEBUG
+  level.org.springframework.cloud.sleuth: TRACE
+  level.org.springframework.cloud.sleuth.log: DEBUG
+  level.org.springframework.cloud.sleuth.trace: DEBUG
+  level.org.springframework.cloud.sleuth.instrument.rxjava: DEBUG
+
+logging.file: build/zuul.log
+
+server.port: ${PORT:9993}
+
+spring.rabbitmq.host: ${RABBIT_HOST:localhost}
+
+# TODO: Not working?
+#zuul.route.ingredients: /
+
+zuul:
+  ignoredPatterns: /health,/error
+  retryable: true
+
+hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds: 60000
+
+
+endpoints.health.sensitive: false
+endpoints.default.web.enabled: true
+management.security.enabled: false
+management.endpoints.web.base-path: /
+
+spring.zipkin.sender.type: web

@@ -1,0 +1,9 @@
+server:
+  port: 8989
+spring:
+  platform:
+    locks:
+      expiry: 120000 # 2 minutes
+logging:
+  level:
+    com.netflix.discovery: 'OFF'

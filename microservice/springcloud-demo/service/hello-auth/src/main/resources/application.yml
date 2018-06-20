@@ -1,0 +1,38 @@
+
+server:
+  port: 8001
+
+#服务注册中心
+eureka:
+  client:
+    service-url:
+      default-zone: http://localhost:8761/eureka
+  instance:
+    instanceId: ${spring.application.name}:${spring.cloud.client.ipAddress}:${server.port}
+
+#数据源
+spring:
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: none
+    generate-ddl: false
+  datasource:
+    platform: h2
+    schema: classpath:schema.sql
+    data: classpath:data.sql
+  zipkin:
+    base-url: http://127.0.0.1:9411
+  application:
+    name: hello-auth
+logging:
+  level:
+    root: INFO
+    org.hibernate: INFO
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.hibernate.type.descriptor.sql.BasicExtractor: TRACE
+
+
+
+
+

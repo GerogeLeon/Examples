@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: helloworld
+endpoints:
+  info:
+    enabled: true
+    sensitive: false
+info:
+  name: helloworld
+  port: ${server.port}

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:int-ftp="http://www.springframework.org/schema/integration/ftp"
+	xsi:schemaLocation="http://www.springframework.org/schema/integration/ftp http://www.springframework.org/schema/integration/ftp/spring-integration-ftp.xsd
+		http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+	<context:property-placeholder location="classpath:user.properties"/>
+
+	<int:gateway id="gw" service-interface="org.springframework.integration.samples.ftp.ToFtpFlowGateway"
+		default-request-channel="inbound"/>
+
+	<bean id="ftpSessionFactory"
+		class="org.springframework.integration.ftp.session.DefaultFtpSessionFactory">
+		<property name="host" value="${host}"/>
+		<property name="port" value="${availableServerPort}"/>
+		<property name="username" value="${userid}"/>
+		<property name="password" value="${password}"/>
+	</bean>
+
+	<int-ftp:outbound-gateway id="gatewayLS"
+		session-factory="ftpSessionFactory"
+		request-channel="inbound"
+		command="ls"
+		command-options=""
+		expression="payload"
+		reply-channel="toSplitter">
+		<int-ftp:request-handler-advice-chain>
+			<int:retry-advice/>
+		</int-ftp:request-handler-advice-chain>
+	</int-ftp:outbound-gateway>
+
+	<int:channel id="toSplitter">
+		<int:interceptors>
+		 <int:wire-tap channel="logger"/>
+		</int:interceptors>
+	</int:channel>
+
+	<int:logging-channel-adapter id="logger" log-full-message="true"/>
+
+	<int:splitter id="splitter" input-channel="toSplitter" output-channel="toGet"/>
+
+	<int-ftp:outbound-gateway id="gatewayGET"
+		local-directory="#{ T(org.springframework.integration.samples.ftp.TestSuite).LOCAL_FTP_TEMP_DIR}/gatewayGET"
+		session-factory="ftpSessionFactory"
+		request-channel="toGet"
+		reply-channel="toRemoveChannel"
+		command="get"
+		command-options="-P"
+		expression="payload.remoteDirectory + '/' + payload.filename">
+		<int-ftp:request-handler-advice-chain>
+			<int:retry-advice />
+		</int-ftp:request-handler-advice-chain>
+	</int-ftp:outbound-gateway>
+
+	<int:channel id="toRemoveChannel">
+		<int:interceptors>
+			<int:wire-tap channel="logger2"/>
+		</int:interceptors>
+	</int:channel>
+
+	<int:logging-channel-adapter id="logger2" log-full-message="true"/>
+
+	<int-ftp:outbound-gateway id="gatewayRM"
+		session-factory="ftpSessionFactory"
+		expression="headers['file_remoteDirectory'] + '/' + headers['file_remoteFile']"
+		request-channel="toRemoveChannel"
+		command="rm"
+		reply-channel="aggregateResultsChannel">
+		<int-ftp:request-handler-advice-chain>
+			<int:retry-advice />
+		</int-ftp:request-handler-advice-chain>
+	</int-ftp:outbound-gateway>
+
+	<int:aggregator input-channel="aggregateResultsChannel"/>
+
+</beans>

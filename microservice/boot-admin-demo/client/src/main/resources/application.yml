@@ -1,0 +1,14 @@
+spring:
+  boot:
+    admin:
+      url: http://localhost:8083
+info:
+  name: client
+  description: @project.description@
+  version: @project.version@
+endpoints:
+  trace:
+    enabled: true
+    sensitive: false
+server:
+  port: 8087
